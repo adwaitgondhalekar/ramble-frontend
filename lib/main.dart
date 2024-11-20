@@ -1,11 +1,10 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:ramble/signup.dart';
-import 'package:ramble/login.dart';
-import 'package:ramble/homepage.dart';
+import 'package:ramble/screens/signup_screen.dart';
+import 'package:ramble/screens/login_screen.dart';
+import 'package:ramble/screens/home_screen.dart';
 
 Future<void> main() async {
   // Preserving the SplashScreen even after Flutter has initialized to check if use has logged in.
@@ -50,7 +49,7 @@ class MyApp extends StatelessWidget {
         // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: isLoggedIn ? const HomePage() : const LandingPage(),
+      home: isLoggedIn ? const HomeScreen(previousPage: 'home',) : const LandingPage(),
     );
   }
 }
@@ -61,15 +60,15 @@ class LandingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: Color.fromRGBO(62, 110, 162, 1),
+        backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Padding(
-                padding: EdgeInsets.fromLTRB(51, 60, 51, 0),
+                padding: const EdgeInsets.fromLTRB(51, 60, 51, 0),
                 child: Container(
                     alignment: Alignment.center,
-                    constraints: BoxConstraints(minWidth: 300, minHeight: 100),
+                    constraints: const BoxConstraints(minWidth: 300, minHeight: 100),
                     child: Text('Ramble',
                         style: GoogleFonts.yaldevi(
                           textStyle: const TextStyle(
@@ -79,7 +78,7 @@ class LandingPage extends StatelessWidget {
                           ),
                         )))),
             Padding(
-                padding: EdgeInsets.fromLTRB(51, 96, 51, 0),
+                padding: const EdgeInsets.fromLTRB(51, 96, 51, 0),
                 child: Image.asset(
                   'assets/images/social_asset.png',
                   fit: BoxFit.contain,
@@ -87,15 +86,15 @@ class LandingPage extends StatelessWidget {
                   width: 300,
                 )),
             Padding(
-              padding: EdgeInsets.fromLTRB(51, 97, 51, 0),
+              padding: const EdgeInsets.fromLTRB(51, 97, 51, 0),
               child: Column(
                 children: [
                   ElevatedButton(
                       onPressed: () => Navigator.pushReplacement(context,
-                          MaterialPageRoute(builder: (context) => SignUp())),
+                          MaterialPageRoute(builder: (context) => const SignUp())),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color.fromRGBO(0, 174, 240, 1),
-                        minimumSize: Size(150, 45),
+                        backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
+                        minimumSize: const Size(150, 45),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(50),
                         ),
@@ -109,15 +108,15 @@ class LandingPage extends StatelessWidget {
                           color: Colors.white,
                         )),
                       )),
-                  Padding(padding: EdgeInsets.only(top: 32)),
+                  const Padding(padding: EdgeInsets.only(top: 32)),
                   ElevatedButton(
                       onPressed: () {
                         Navigator.pushReplacement(context,
-                            MaterialPageRoute(builder: (context) => Login()));
+                            MaterialPageRoute(builder: (context) => const Login()));
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color.fromRGBO(0, 174, 240, 1),
-                        minimumSize: Size(150, 45),
+                        backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
+                        minimumSize: const Size(150, 45),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(50),
                         ),

@@ -3,10 +3,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:ramble/homepage.dart';
-import 'signup.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ramble/screens/home_screen.dart';
+import 'signup_screen.dart';
 
 class Login extends StatefulWidget {
+  const Login({super.key});
+
   @override
   _LoginState createState() => _LoginState();
 }
@@ -43,7 +46,7 @@ class _LoginState extends State<Login> {
   }
 
   Future<void> loginUser(String email, String password) async {
-    final url = Uri.parse('http://192.168.1.33:8000/login/');
+    final url = Uri.parse('http://10.0.2.2:8000/login/');
 
     FocusScope.of(context).unfocus(); // Dismiss the keyboard
 
@@ -53,7 +56,7 @@ class _LoginState extends State<Login> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+          backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
           contentTextStyle: GoogleFonts.yaldevi(
             textStyle: const TextStyle(
               fontSize: 16,
@@ -90,6 +93,15 @@ class _LoginState extends State<Login> {
       Navigator.of(context).pop(); // Close the loading dialog
 
       if (response.statusCode == 200) {
+        // Parse the token from the response
+        String token = json.decode(response.body)['token'];
+
+        // Save token in SharedPreferences
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('authToken', token);
+
+        debugPrint("token :$token");
+
         // Login successful
         _showDialog('Login successful!', Colors.green, Icons.check_circle);
         
@@ -97,7 +109,7 @@ class _LoginState extends State<Login> {
         Future.delayed(const Duration(seconds: 2), () {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => HomePage()),
+            MaterialPageRoute(builder: (context) => const HomeScreen(previousPage: 'home',)),
           );
         });
       } else {
@@ -282,12 +294,12 @@ class _LoginState extends State<Login> {
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderSide: BorderSide(width: 1),
+              borderSide: const BorderSide(width: 1),
               borderRadius: BorderRadius.circular(15),
             ),
             suffixIcon: suffixIcon,
             focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(width: 0),
+              borderSide: const BorderSide(width: 0),
               borderRadius: BorderRadius.circular(15),
             ),
           ),
@@ -321,7 +333,7 @@ class _LoginState extends State<Login> {
               ..onTap = () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SignUp()),
+                  MaterialPageRoute(builder: (context) => const SignUp()),
                 );
               },
           ),

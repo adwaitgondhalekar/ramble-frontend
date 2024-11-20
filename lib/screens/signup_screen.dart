@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'homepage.dart';
-import 'login.dart';
+import 'home_screen.dart';
+import 'login_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class SignUp extends StatefulWidget {
+  const SignUp({super.key});
+
   @override
   _SignUpState createState() => _SignUpState();
 }
@@ -15,7 +19,7 @@ class _SignUpState extends State<SignUp> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   // Define regex patterns
   final RegExp _emailRegex = RegExp(r'^\S+@\S+$');
@@ -100,7 +104,7 @@ class _SignUpState extends State<SignUp> {
   Future<void> signupUser(BuildContext context, String username, String email,
       String password, String firstName, String lastName) async {
     final url = Uri.parse(
-        'http://192.168.1.33:8000/signup/'); // Replace with your Django server IP
+        'http://10.0.2.2:8000/signup/'); // Replace with your Django server IP
 
     // Show loading dialog with initial message
     showDialog(
@@ -110,7 +114,7 @@ class _SignUpState extends State<SignUp> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+              backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
               contentTextStyle: GoogleFonts.yaldevi(
                 textStyle: const TextStyle(
                   fontSize: 16,
@@ -118,7 +122,7 @@ class _SignUpState extends State<SignUp> {
                   color: Colors.white,
                 ),
               ),
-              content: Padding(
+              content: const Padding(
                 padding: EdgeInsets.all(16.0), // Add padding for compactness
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -158,6 +162,14 @@ class _SignUpState extends State<SignUp> {
       // Update the dialog content upon receiving the response
       if (response.statusCode == 201) {
         // Success response from the server
+        final data = json.decode(response.body);
+        final token = data['token'];
+
+        //saving the token in local store for the future api calls
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('authToken', token);
+
+
         setState(() {
           Navigator.of(context).pop(); // Close the loading dialog first
           showDialog(
@@ -194,11 +206,11 @@ class _SignUpState extends State<SignUp> {
         });
 
         // Delay before navigating to HomePage
-        Future.delayed(Duration(seconds: 3), () {
+        Future.delayed(const Duration(seconds: 3), () {
           Navigator.pop(context); // Close the success dialog
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => HomePage()),
+            MaterialPageRoute(builder: (context) => const HomeScreen(previousPage: 'home',)),
           );
         });
       } else {
@@ -210,7 +222,7 @@ class _SignUpState extends State<SignUp> {
             barrierDismissible: false,
             builder: (BuildContext context) {
               return AlertDialog(
-                backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+                backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
                 contentTextStyle: GoogleFonts.yaldevi(
                   textStyle: const TextStyle(
                     fontSize: 16,
@@ -219,15 +231,15 @@ class _SignUpState extends State<SignUp> {
                   ),
                 ),
                 content: Padding(
-                  padding: EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.close, color: Colors.red, size: 48),
-                      SizedBox(height: 20),
+                      const Icon(Icons.close, color: Colors.red, size: 48),
+                      const SizedBox(height: 20),
                       Text("Signup failed: ${response.body}",
-                          style: TextStyle(color: Colors.red)),
+                          style: const TextStyle(color: Colors.red)),
                     ],
                   ),
                 ),
@@ -248,9 +260,9 @@ class _SignUpState extends State<SignUp> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromRGBO(62, 110, 162, 1),
+      backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
       body: SingleChildScrollView(
-        physics: ClampingScrollPhysics(),
+        physics: const ClampingScrollPhysics(),
         child: Form(
           key: _formKey,
           autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -258,10 +270,10 @@ class _SignUpState extends State<SignUp> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(51, 60, 51, 0),
+                padding: const EdgeInsets.fromLTRB(51, 60, 51, 0),
                 child: Container(
                   alignment: Alignment.center,
-                  constraints: BoxConstraints(minWidth: 300, minHeight: 100),
+                  constraints: const BoxConstraints(minWidth: 300, minHeight: 100),
                   child: Text(
                     'Ramble',
                     style: GoogleFonts.yaldevi(
@@ -311,8 +323,8 @@ class _SignUpState extends State<SignUp> {
                     });
                   },
                   icon: _passwordVisible
-                      ? Icon(Icons.visibility_off)
-                      : Icon(Icons.visibility),
+                      ? const Icon(Icons.visibility_off)
+                      : const Icon(Icons.visibility),
                 ),
               ),
               _buildTextField(
@@ -329,8 +341,8 @@ class _SignUpState extends State<SignUp> {
                     });
                   },
                   icon: _confirmPasswordVisible
-                      ? Icon(Icons.visibility_off)
-                      : Icon(Icons.visibility),
+                      ? const Icon(Icons.visibility_off)
+                      : const Icon(Icons.visibility),
                 ),
               ),
               Padding(
@@ -357,7 +369,7 @@ class _SignUpState extends State<SignUp> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(50),
                       ),
-                      backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+                      backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
                     ),
                     child: Text(
                       'Sign Up',
@@ -398,7 +410,7 @@ class _SignUpState extends State<SignUp> {
                           ..onTap = () {
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
-                                builder: (context) => Login(),
+                                builder: (context) => const Login(),
                               ),
                             );
                           },
@@ -463,12 +475,12 @@ class _SignUpState extends State<SignUp> {
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
-              borderSide: BorderSide(width: 1),
+              borderSide: const BorderSide(width: 1),
               borderRadius: BorderRadius.circular(15),
             ),
             suffixIcon: suffixIcon,
             focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(width: 0),
+              borderSide: const BorderSide(width: 0),
               borderRadius: BorderRadius.circular(15),
             ),
           ),
