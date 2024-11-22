@@ -49,7 +49,11 @@ class MyApp extends StatelessWidget {
         // colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: isLoggedIn ? const HomeScreen(previousPage: 'home',) : const LandingPage(),
+      home: isLoggedIn
+          ? const HomeScreen(
+              previousPage: 'home',
+            )
+          : const LandingPage(),
     );
   }
 }
@@ -68,7 +72,8 @@ class LandingPage extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(51, 60, 51, 0),
                 child: Container(
                     alignment: Alignment.center,
-                    constraints: const BoxConstraints(minWidth: 300, minHeight: 100),
+                    constraints:
+                        const BoxConstraints(minWidth: 300, minHeight: 100),
                     child: Text('Ramble',
                         style: GoogleFonts.yaldevi(
                           textStyle: const TextStyle(
@@ -90,8 +95,10 @@ class LandingPage extends StatelessWidget {
               child: Column(
                 children: [
                   ElevatedButton(
-                      onPressed: () => Navigator.pushReplacement(context,
-                          MaterialPageRoute(builder: (context) => const SignUp())),
+                      onPressed: () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const SignUp())),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
                         minimumSize: const Size(150, 45),
@@ -111,8 +118,10 @@ class LandingPage extends StatelessWidget {
                   const Padding(padding: EdgeInsets.only(top: 32)),
                   ElevatedButton(
                       onPressed: () {
-                        Navigator.pushReplacement(context,
-                            MaterialPageRoute(builder: (context) => const Login()));
+                        Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const Login()));
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
@@ -137,5 +146,3 @@ class LandingPage extends StatelessWidget {
         ));
   }
 }
-
-

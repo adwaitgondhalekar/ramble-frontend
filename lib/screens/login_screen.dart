@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ramble/screens/home_screen.dart';
 import 'signup_screen.dart';
+import 'package:ramble/service_urls.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -45,124 +46,258 @@ class _LoginState extends State<Login> {
     return null;
   }
 
-  Future<void> loginUser(String email, String password) async {
-    final url = Uri.parse('http://10.0.2.2:8000/login/');
+  Future<void> loginUser(String username, String password) async {
+    final url = Uri.parse('${USER_SERVICE_URL}login/');
 
-    FocusScope.of(context).unfocus(); // Dismiss the keyboard
+    // Ensure the keyboard is dismissed
+    FocusScope.of(context).unfocus();
 
-    // Show loading dialog
-    final loadingDialog = showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
-          contentTextStyle: GoogleFonts.yaldevi(
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+    // Loading Snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Logging in...',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
-          ),
-          content: const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(color: Colors.white),
-                SizedBox(height: 20),
-                Text('Logging in...'),
-              ],
-            ),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-        );
-      },
+          ],
+        ),
+        duration: Duration(seconds: 3),
+      ),
     );
 
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({"username": email, "password": password}),
+        body: json.encode({"username": username, "password": password}),
       );
 
-      Navigator.of(context).pop(); // Close the loading dialog
+      // Hide the loading Snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       if (response.statusCode == 200) {
-        // Parse the token from the response
-        String token = json.decode(response.body)['token'];
+        // Login success
+        String token = json.decode(response.body)['access'];
+        int userid = json.decode(response.body)['user-data']['id'];
+        String first_name =
+            json.decode(response.body)['user-data']['user']['first_name'];
+        String last_name =
+            json.decode(response.body)['user-data']['user']['last_name'];
+        String bio = json.decode(response.body)['user-data']['bio'];
 
         // Save token in SharedPreferences
         SharedPreferences prefs = await SharedPreferences.getInstance();
+
+        // Set user data
         await prefs.setString('authToken', token);
+        await prefs.setInt(
+          'userId',
+          userid,
+        );
+        await prefs.setString('username', username);
+        await prefs.setString('firstName', first_name);
+        await prefs.setString('lastName', last_name);
+        await prefs.setString('bio', bio);
 
-        debugPrint("token :$token");
+        // Set isLoggedIn to true
+        await prefs.setBool('isLoggedIn', true);
 
-        // Login successful
-        _showDialog('Login successful!', Colors.green, Icons.check_circle);
-        
-        // Delay and then navigate to HomePage
+        // Success Snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Login successful!',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Navigate to the home screen after a short delay
         Future.delayed(const Duration(seconds: 2), () {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomeScreen(previousPage: 'home',)),
+            MaterialPageRoute(
+                builder: (context) => const HomeScreen(previousPage: 'home')),
           );
         });
+      } else if (response.statusCode == 400) {
+        // Extract error message from the response
+        String errorMessage = json.decode(response.body)['error'] ??
+            'Invalid username or password';
+
+        // Error Snackbar for invalid username or password
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Login failed: $errorMessage',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       } else {
-        // Login failed
-        String errorMessage = 'Login failed: ${json.decode(response.body)["error"]}';
-        _showDialog(errorMessage, Colors.red, Icons.cancel);
-        
-        // Close the failure dialog after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          Navigator.of(context).pop(); // Close the failure dialog
-        });
+        // Generic server error Snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'An unexpected error occurred. Status code: ${response.statusCode}',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     } catch (e) {
-      // Close the loading dialog if an error occurs
-      Navigator.of(context).pop();
-      _showDialog('An error occurred. Please try again.', Colors.red, Icons.error);
-      print("Error: $e");
+      // Hide the loading Snackbar in case of exception
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Network error Snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Network error. Please try again.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      print('Error: $e');
     }
   }
 
-  void _showDialog(String message, Color color, IconData icon) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: color,
-          contentTextStyle: GoogleFonts.yaldevi(
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          content: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white, size: 40),
-                const SizedBox(height: 20),
-                Text(message),
-              ],
-            ),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12.0),
-          ),
-        );
-      },
-    );
-  }
+  // void _showSuccessDialog(String message, Color color, IconData icon) {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: false, // Disable dismissing by tapping outside
+  //     builder: (BuildContext context) {
+  //       return WillPopScope(
+  //         onWillPop: () async {
+  //           return false; // Prevent the back button from dismissing the dialog
+  //         },
+  //         child: AlertDialog(
+  //           backgroundColor: color,
+  //           contentTextStyle: GoogleFonts.yaldevi(
+  //             textStyle: const TextStyle(
+  //               fontSize: 16,
+  //               fontWeight: FontWeight.bold,
+  //               color: Colors.white,
+  //             ),
+  //           ),
+  //           content: Padding(
+  //             padding: const EdgeInsets.all(16.0),
+  //             child: Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               mainAxisAlignment: MainAxisAlignment.center,
+  //               children: [
+  //                 Icon(icon, color: Colors.white, size: 40),
+  //                 const SizedBox(height: 20),
+  //                 Text(message),
+  //               ],
+  //             ),
+  //           ),
+  //           shape: RoundedRectangleBorder(
+  //             borderRadius: BorderRadius.circular(12.0),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
+  // void _showFailureDialog(String message, Color color, IconData icon) {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: true,
+  //     builder: (BuildContext context) {
+  //       return WillPopScope(
+  //         onWillPop: () async {
+  //           Navigator.of(context).pop(); // Close only the dialog
+  //           return false;
+  //         },
+  //         child: AlertDialog(
+  //           backgroundColor: color,
+  //           contentTextStyle: GoogleFonts.yaldevi(
+  //             textStyle: const TextStyle(
+  //               fontSize: 16,
+  //               fontWeight: FontWeight.bold,
+  //               color: Colors.white,
+  //             ),
+  //           ),
+  //           content: Padding(
+  //             padding: const EdgeInsets.all(16.0),
+  //             child: Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               mainAxisAlignment: MainAxisAlignment.center,
+  //               children: [
+  //                 Icon(icon, color: Colors.white, size: 40),
+  //                 const SizedBox(height: 20),
+  //                 Text(message),
+  //               ],
+  //             ),
+  //           ),
+  //           shape: RoundedRectangleBorder(
+  //             borderRadius: BorderRadius.circular(12.0),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   ).then((_) {
+  //     // Ensure the Login screen remains on the stack after dialog dismissal
+  //     Navigator.pushReplacement(
+  //       context,
+  //       MaterialPageRoute(builder: (context) => const Login()),
+  //     );
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -180,7 +315,8 @@ class _LoginState extends State<Login> {
                 padding: const EdgeInsets.fromLTRB(51, 60, 51, 50),
                 child: Container(
                   alignment: Alignment.center,
-                  constraints: const BoxConstraints(minWidth: 300, minHeight: 100),
+                  constraints:
+                      const BoxConstraints(minWidth: 300, minHeight: 100),
                   child: Text(
                     'Ramble',
                     style: GoogleFonts.yaldevi(
@@ -282,7 +418,8 @@ class _LoginState extends State<Login> {
               ),
             ),
             helperText: helperText,
-            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 40),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 40),
             errorStyle: GoogleFonts.yaldevi(
               textStyle: const TextStyle(
                 fontSize: 10,
@@ -331,7 +468,7 @@ class _LoginState extends State<Login> {
             ),
             recognizer: TapGestureRecognizer()
               ..onTap = () {
-                Navigator.push(
+                Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const SignUp()),
                 );

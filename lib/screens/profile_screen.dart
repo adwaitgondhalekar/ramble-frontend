@@ -1,12 +1,17 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:ramble/screens/search_screen.dart';
+import 'package:intl/intl.dart';
+import 'package:ramble/screens/edit_profile_screen.dart';
+import 'package:ramble/widgets/custom_bottom_navbar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_screen.dart';
+import 'search_screen.dart';
+import 'package:ramble/service_urls.dart';
 
 class ProfileScreen extends StatefulWidget {
-  final String previousPage; // Accept previous page info
+  final String previousPage;
   const ProfileScreen({super.key, required this.previousPage});
 
   @override
@@ -14,204 +19,449 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String username = '';
-  String bio = '';
+  List<dynamic> posts = [];
+  int? userId;
+  String? username;
+  String? firstName;
+  String? lastName;
+  String? bio;
+
   int followersCount = 0;
   int followingCount = 0;
   int postCount = 0;
 
+  bool isLoading = true;
+
   @override
   void initState() {
     super.initState();
+    _loadSharedPreferencesData();
     fetchProfileData();
   }
 
-  Future<void> fetchProfileData() async {
-    const String apiUrl = 'http://10.0.2.2:8000/profile/';
+  Future<void> _loadSharedPreferencesData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userId = prefs.getInt('userId') ?? -1;
+      username = prefs.getString('username') ?? 'Unknown User';
+      firstName = prefs.getString('firstName') ?? 'First Name';
+      lastName = prefs.getString('lastName') ?? 'Last Name';
+      bio = prefs.getString('bio') ?? 'No Bio';
+    });
+  }
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+  Future<void> fetchProfileData() async {
+    final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('authToken');
 
+    setState(() => isLoading = true);
+
     try {
-      final response = await http.get(
-        Uri.parse(apiUrl),
+      final postsResponse = await http.get(
+        Uri.parse('${POST_SERVICE_URL}posts/'),
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Token $token',
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
         },
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
+      if (postsResponse.statusCode == 200) {
+        final List<dynamic> postData = json.decode(postsResponse.body);
+        postData.sort((a, b) => DateTime.parse(b['timestamp'])
+            .compareTo(DateTime.parse(a['timestamp']))); // Sort posts
         setState(() {
-          username = data['user']['username'];
-          bio = data['bio'];
-          followersCount = data['followers_count'];
-          followingCount = data['following_count'];
-          postCount = data['post_count'];
+          posts = postData;
+          postCount = postData.length;
         });
-      } else {
-        debugPrint('Failed to load profile data: ${response.body}');
+      }
+
+      final followersResponse = await http.get(
+        Uri.parse('${FOLLOW_SERVICE_URL}followers/'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (followersResponse.statusCode == 200) {
+        setState(() {
+          followersCount =
+              json.decode(followersResponse.body)['total_followers'];
+        });
+      }
+
+      final followingResponse = await http.get(
+        Uri.parse('${FOLLOW_SERVICE_URL}followees/'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (followingResponse.statusCode == 200) {
+        setState(() {
+          followingCount =
+              json.decode(followingResponse.body)['total_following'];
+        });
       }
     } catch (error) {
-      debugPrint('Error fetching profile data: $error');
+      _showErrorSnackbar('Error fetching profile data: $error');
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  void _handleBackNavigation(BuildContext context) {
-    if (widget.previousPage == 'login' || widget.previousPage == 'signup') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen(previousPage: 'search',)),
-      );
-    } else {
-      Navigator.pop(context);
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _navigateToEditProfile() async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+    );
+
+    if (updated == true) {
+      // Reload data after editing profile
+      _loadSharedPreferencesData();
+      fetchProfileData(); // This fetches posts again with the updated username
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('ramble', style: TextStyle(color: Colors.white)),
-        centerTitle: true,
-        backgroundColor: const Color(0xFF2C4B69),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            _handleBackNavigation(context);
-          },
+      backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
+      appBar: _buildAppBar(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : _buildProfileBody(),
+      bottomNavigationBar: CustomBottomNavBar(
+        currentIndex: 2,
+        onTap: _handleNavigation,
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(57.0),
+      child: Material(
+        color: const Color.fromRGBO(62, 110, 162, 1),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppBar(
+              iconTheme: const IconThemeData(color: Colors.white),
+              backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
+              title: Text(
+                'Your Profile',
+                style: GoogleFonts.yaldevi(
+                  textStyle: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              centerTitle: true,
+            ),
+            Container(
+              height: 1,
+              color: Colors.white.withOpacity(0.5),
+            ),
+          ],
         ),
       ),
-      body: Column(
+    );
+  }
+
+  Widget _buildProfileBody() {
+    return SingleChildScrollView(
+      child: Column(
         children: [
-          // Segment 1: Profile Picture, Name, Country, and Bio
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundImage: const NetworkImage('https://example.com/profile.jpg'), // Replace with actual URL
-                  backgroundColor: Colors.grey[300],
+          _buildProfileInfo(),
+          _buildStatsSection(),
+          _buildEditProfileButton(),
+          const Divider(color: Colors.white70),
+          _buildPostsSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileInfo() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.grey[300],
+            child: const Icon(Icons.person, size: 40, color: Colors.white),
+          ),
+          const SizedBox(width: 20),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                username ?? 'Unknown User',
+                style: GoogleFonts.yaldevi(
+                  textStyle: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-                const SizedBox(width: 20),
-                // Name, Country, Bio
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      username,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              Row(
+                children: [
+                  Text(
+                    firstName ?? 'First Name',
+                    style: GoogleFonts.yaldevi(
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                    const Text('India', style: TextStyle(fontSize: 14, color: Colors.grey)), // Static country value
-                    Text(bio, style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                  ],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    lastName ?? 'Last Name',
+                    style: GoogleFonts.yaldevi(
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                bio ?? 'No Bio',
+                style: GoogleFonts.yaldevi(
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white70,
+                  ),
                 ),
-              ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildCountColumn('Posts', postCount),
+          _buildCountColumn('Followers', followersCount),
+          _buildCountColumn('Following', followingCount),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCountColumn(String label, int count) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.yaldevi(
+            textStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
-          // Segment 2: Posts, Followers, Following
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Column(
-                  children: [
-                    const Text('POSTS', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 5),
-                    Text('$postCount'),
-                  ],
-                ),
-                Column(
-                  children: [
-                    const Text('FOLLOWERS', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 5),
-                    Text('$followersCount'),
-                  ],
-                ),
-                Column(
-                  children: [
-                    const Text('FOLLOWING', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 5),
-                    Text('$followingCount'),
-                  ],
-                ),
-              ],
+        ),
+        Text(
+          count.toString(),
+          style: GoogleFonts.yaldevi(
+            textStyle: const TextStyle(
+              fontSize: 14,
+              color: Colors.white70,
             ),
           ),
-          const Divider(),
-          // Segment 3: Edit Profile Button
-          ElevatedButton(
-            onPressed: () {
-              // Edit profile action
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green[700],
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditProfileButton() {
+    return ElevatedButton(
+      onPressed: _navigateToEditProfile,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+      child: Text(
+        'Edit Profile',
+        style: GoogleFonts.yaldevi(
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostsSection() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your Posts',
+            style: GoogleFonts.yaldevi(
+              textStyle: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-              child: Text('Edit Profile'),
-            ),
           ),
-          const Divider(),
-          // Segment 4: User Posts
-          const Expanded(
-            child: Padding(
-              padding: EdgeInsets.all(8.0),
+          const SizedBox(height: 20),
+          posts.isEmpty
+              ? Container(
+                  height: 200,
+                  child: const Center(
+                    child: Text(
+                      'No posts yet.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: posts.length,
+                  itemBuilder: (context, index) {
+                    final post = posts[index];
+                    return _buildPostCard(post);
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostCard(Map<String, dynamic> post) {
+    final formattedDate = DateFormat('MMM d, yyyy, h:mm a')
+        .format(DateTime.parse(post['timestamp']).toLocal());
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: Colors.grey[200],
+              child: const Icon(Icons.person, color: Color(0xFF2C4B69)),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('All posts', style: TextStyle(fontWeight: FontWeight.bold)),
-                  // Add a ListView or GridView to show all posts made by the user
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        post['username'] ?? 'Anonymous',
+                        style: GoogleFonts.yaldevi(
+                          textStyle: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        formattedDate,
+                        style: GoogleFonts.yaldevi(
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    post['text'] ?? '',
+                    style: GoogleFonts.yaldevi(
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.thumb_up, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        post['likes']?.toString() ?? '0',
+                        style: GoogleFonts.yaldevi(
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-      // Bottom Navigation Bar
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 2,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HomeScreen(previousPage: 'profile',),
-              ),
-            );
-          } else if (index == 1) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SearchScreen(previousPage: 'profile'),
-              ),
-            );
-          }
-        },
-        selectedItemColor: Colors.white,
-        backgroundColor: const Color(0xFF2C4B69),
+          ],
+        ),
       ),
     );
+  }
+
+  void _handleNavigation(int index) {
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(previousPage: 'profile'),
+        ),
+      );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const SearchScreen(previousPage: 'profile'),
+        ),
+      );
+    }
   }
 }

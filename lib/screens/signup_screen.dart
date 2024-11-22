@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:ramble/service_urls.dart';
 
 class SignUp extends StatefulWidget {
   const SignUp({super.key});
@@ -102,160 +102,141 @@ class _SignUpState extends State<SignUp> {
   }
 
   Future<void> signupUser(BuildContext context, String username, String email,
-      String password, String firstName, String lastName) async {
-    final url = Uri.parse(
-        'http://10.0.2.2:8000/signup/'); // Replace with your Django server IP
+    String password, String firstName, String lastName) async {
+  final url = Uri.parse('${USER_SERVICE_URL}signup/'); // Replace with your Django server IP
 
-    // Show loading dialog with initial message
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
-              contentTextStyle: GoogleFonts.yaldevi(
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+  // Loading Snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: Colors.white),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Signing up...',
+                style: TextStyle(color: Colors.white),
               ),
-              content: const Padding(
-                padding: EdgeInsets.all(16.0), // Add padding for compactness
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 20), // Adds vertical spacing
-                    Text('Signing up...'),
-                  ],
-                ),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.0), // Rounded corners
-              ),
-            );
-          },
-        );
-      },
+            ),
+          ],
+        ),
+        duration: Duration(seconds: 3),
+      ),
     );
 
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          "user": {
-            'username': username,
-            'email': email,
-            'password': password,
-            'first_name': firstName,
-            'last_name': lastName
-          },
-          "bio": "user bio"
-        }),
-      );
+  try {
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        "user": {
+          'username': username,
+          'email': email,
+          'password': password,
+          'first_name': firstName,
+          'last_name': lastName
+        },
+        "bio": "user bio"
+      }),
+    );
 
-      // Update the dialog content upon receiving the response
-      if (response.statusCode == 201) {
-        // Success response from the server
-        final data = json.decode(response.body);
-        final token = data['token'];
+    // Close the loading Snackbar
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-        //saving the token in local store for the future api calls
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('authToken', token);
+    if (response.statusCode == 201) {
+      // Success response from the server
+      final data = json.decode(response.body);
+      final token = data['access'];
 
+      // Saving the token in local storage for future API calls
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('authToken', token);
 
-        setState(() {
-          Navigator.of(context).pop(); // Close the loading dialog first
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                backgroundColor: Colors.green,
-                contentTextStyle: GoogleFonts.yaldevi(
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+      // Success Snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Signup successful',
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
-                content: const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check, color: Colors.white, size: 48),
-                      SizedBox(height: 20),
-                      Text("Signup successful!"),
-                    ],
-                  ),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-              );
-            },
-          );
-        });
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
 
-        // Delay before navigating to HomePage
-        Future.delayed(const Duration(seconds: 3), () {
-          Navigator.pop(context); // Close the success dialog
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen(previousPage: 'home',)),
-          );
-        });
-      } else {
-        // Failure response from the server
-        setState(() {
-          Navigator.of(context).pop(); // Close the loading dialog first
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
-                contentTextStyle: GoogleFonts.yaldevi(
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                content: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.close, color: Colors.red, size: 48),
-                      const SizedBox(height: 20),
-                      Text("Signup failed: ${response.body}",
-                          style: const TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-              );
-            },
-          );
-        });
+      // Delay before navigating to HomePage
+      Future.delayed(const Duration(seconds: 3), () {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(previousPage: 'home',),
+          ),
+        );
+      });
+    } else {
+      // Parse server error response
+      final errorResponse = json.decode(response.body);
+      String errorMessage = 'Signup failed'; // Default error message
+
+      // Extract error details if present
+      if (errorResponse.containsKey('user')) {
+        final userError = errorResponse['user'];
+        if (userError is Map && userError.containsKey('username')) {
+          errorMessage = userError['username'][0];
+        } else if (userError is Map && userError.containsKey('email')) {
+          errorMessage = userError['email'][0];
+        }
       }
-    } catch (e) {
-      Navigator.pop(context); // Close the loading dialog
-      print("Error: $e");
+
+      // Show failure Snackbar with parsed error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.red),
+              SizedBox(width: 10),
+              Text(errorMessage),
+            ],
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
+  } catch (e) {
+    // Hide the loading Snackbar
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    // Show error Snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: Colors.red,
+        content: Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.white),
+            SizedBox(width: 10),
+            Text('An error occurred. Please try again.'),
+          ],
+        ),
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    print("Error: $e");
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -273,7 +254,8 @@ class _SignUpState extends State<SignUp> {
                 padding: const EdgeInsets.fromLTRB(51, 60, 51, 0),
                 child: Container(
                   alignment: Alignment.center,
-                  constraints: const BoxConstraints(minWidth: 300, minHeight: 100),
+                  constraints:
+                      const BoxConstraints(minWidth: 300, minHeight: 100),
                   child: Text(
                     'Ramble',
                     style: GoogleFonts.yaldevi(

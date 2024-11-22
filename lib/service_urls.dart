@@ -1,0 +1,3 @@
+String USER_SERVICE_URL = "http://172.17.84.121:8000/";
+String POST_SERVICE_URL = "http://172.17.84.121:8003/";
+String FOLLOW_SERVICE_URL = "http://172.17.84.121:8002/";
