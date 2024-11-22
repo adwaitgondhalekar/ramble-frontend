@@ -207,11 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             onTap: () async {
               final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('authToken');
-              await prefs.remove('isLoggedIn');
-              await prefs.remove('username');
-              await prefs.remove('firstName');
-              await prefs.remove('lastName');
+              await prefs.clear();
               Navigator.pushReplacement(context,
                   MaterialPageRoute(builder: (context) => const Login()));
             },

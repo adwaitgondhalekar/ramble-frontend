@@ -20,7 +20,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   List<dynamic> posts = [];
-  int? userId;
   String? username;
   String? firstName;
   String? lastName;
@@ -35,28 +34,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSharedPreferencesData();
     fetchProfileData();
   }
 
-  Future<void> _loadSharedPreferencesData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      userId = prefs.getInt('userId') ?? -1;
-      username = prefs.getString('username') ?? 'Unknown User';
-      firstName = prefs.getString('firstName') ?? 'First Name';
-      lastName = prefs.getString('lastName') ?? 'Last Name';
-      bio = prefs.getString('bio') ?? 'No Bio';
-    });
-  }
-
   Future<void> fetchProfileData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
-
     setState(() => isLoading = true);
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+
+      // Fetch user profile details
+      final profileResponse = await http.get(
+        Uri.parse('${USER_SERVICE_URL}profile/'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (profileResponse.statusCode == 200) {
+        final profileData = json.decode(profileResponse.body);
+
+        setState(() {
+          username = profileData['username'];
+          firstName = profileData['first_name'];
+          lastName = profileData['last_name'];
+          bio = profileData['bio'];
+        });
+      } else {
+        _showErrorSnackbar('Failed to load profile data');
+      }
+
+      // Fetch posts
       final postsResponse = await http.get(
         Uri.parse('${POST_SERVICE_URL}posts/'),
         headers: {
@@ -75,6 +85,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
 
+      // Fetch followers count
       final followersResponse = await http.get(
         Uri.parse('${FOLLOW_SERVICE_URL}followers/'),
         headers: {
@@ -90,6 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       }
 
+      // Fetch following count
       final followingResponse = await http.get(
         Uri.parse('${FOLLOW_SERVICE_URL}followees/'),
         headers: {
@@ -128,9 +140,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (updated == true) {
-      // Reload data after editing profile
-      _loadSharedPreferencesData();
-      fetchProfileData(); // This fetches posts again with the updated username
+      // Reload profile data after editing
+      fetchProfileData();
     }
   }
 

@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
@@ -18,17 +17,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
 
-  String? _initialUsername;
-  String? _initialBio;
+  String? _originalUsername;
+  String? _originalBio;
+  String? _errorMessage;
   bool _isSaving = false;
+  bool _hasChanges = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfileData();
-    // Add listeners to detect changes in text fields
-    _usernameController.addListener(_checkForChanges);
-    _bioController.addListener(_checkForChanges);
+    _addListeners();
   }
 
   @override
@@ -38,30 +37,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
+  void _addListeners() {
+    _usernameController.addListener(_checkForChanges);
+    _bioController.addListener(_checkForChanges);
+  }
+
   Future<void> _loadProfileData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _initialUsername = prefs.getString('username') ?? 'Unknown User';
-      _initialBio = prefs.getString('bio') ?? 'No Bio';
-      _usernameController.text = _initialUsername!;
-      _bioController.text = _initialBio!;
-    });
-  }
-
-  bool _hasChanges = false;
-
-  void _checkForChanges() {
-    final isUsernameChanged = _usernameController.text != _initialUsername;
-    final isBioChanged = _bioController.text != _initialBio;
-
-    setState(() {
-      _hasChanges = isUsernameChanged || isBioChanged;
-    });
-  }
-
-  Future<void> _saveChanges() async {
-    if (!_hasChanges) return;
-
     setState(() {
       _isSaving = true;
     });
@@ -69,14 +50,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('authToken');
 
-    // Prepare updated data
-    final updatedData = {
-      'user': {'username': _usernameController.text},
-      'bio': _bioController.text,
-    };
+    try {
+      final response = await http.get(
+        Uri.parse('${USER_SERVICE_URL}profile/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _originalUsername = data['username'] ?? '';
+          _originalBio = data['bio'] ?? '';
+          _usernameController.text = _originalUsername!;
+          _bioController.text = _originalBio!;
+          _hasChanges = false; // No changes initially
+        });
+      } else {
+        _showErrorSnackbar('Failed to load profile data.');
+      }
+    } catch (e) {
+      _showErrorSnackbar('An error occurred while loading profile data.');
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+
+  void _checkForChanges() {
+    final usernameChanged = _usernameController.text != _originalUsername;
+    final bioChanged = _bioController.text != _originalBio;
+
+    setState(() {
+      _hasChanges = usernameChanged || bioChanged;
+    });
+  }
+
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('authToken');
+
+    // Prepare data to send
+    final Map<String, dynamic> updatedData = {};
+
+    if (_usernameController.text != _originalUsername) {
+      updatedData['user'] = {'username': _usernameController.text};
+    }
+
+    if (_bioController.text != _originalBio) {
+      updatedData['bio'] = _bioController.text;
+    }
 
     try {
-      // Make API call
       final response = await http.patch(
         Uri.parse('${USER_SERVICE_URL}profile/edit/'),
         headers: {
@@ -87,19 +122,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
       if (response.statusCode == 200) {
-        // Update shared preferences
-        await prefs.setString('username', _usernameController.text);
-        await prefs.setString('bio', _bioController.text);
+        // Update local data
+        if (_usernameController.text != _originalUsername) {
+          await prefs.setString('username', _usernameController.text);
+        }
+        if (_bioController.text != _originalBio) {
+          await prefs.setString('bio', _bioController.text);
+        }
 
-        // Return to profile screen with success
         if (mounted) {
-          Navigator.pop(context, true); // Pass `true` to indicate changes
+          Navigator.pop(context, true); // Notify success
+        }
+      } else if (response.statusCode == 400) {
+        final errorResponse = json.decode(response.body);
+        if (errorResponse['user']?['username'] != null) {
+          _showErrorSnackbar(
+              errorResponse['user']['username'][0]); // Username error
+        } else {
+          _showErrorSnackbar('Failed to save changes. Please try again.');
         }
       } else {
-        _showErrorSnackbar('Failed to save changes. Please try again.');
+        _showErrorSnackbar('An unexpected error occurred. Please try again.');
       }
     } catch (e) {
-      _showErrorSnackbar('An error occurred. Please try again.');
+      _showErrorSnackbar('Network error. Please check your connection.');
     } finally {
       setState(() {
         _isSaving = false;
@@ -110,10 +156,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _showErrorSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(color: Colors.white),
-        ),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.red,
       ),
     );
@@ -139,9 +182,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         centerTitle: true,
       ),
       body: _isSaving
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.white),
-            )
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: Form(
@@ -153,15 +194,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       label: 'Username',
                       controller: _usernameController,
                       hintText: 'Enter your username',
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Username cannot be empty';
+                        } else if (value.contains(' ')) {
+                          return 'Username cannot contain spaces';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
                       label: 'Bio',
                       controller: _bioController,
-                      hintText: 'Enter your bio',
+                      hintText: 'Enter your bio (max 50 characters)',
                       maxLines: 3,
+                      validator: (value) {
+                        if (value != null && value.length > 50) {
+                          return 'Bio cannot exceed 50 characters';
+                        }
+                        return null;
+                      },
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 20),
+                    if (_errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10.0),
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
                     ElevatedButton(
                       onPressed: _hasChanges ? _saveChanges : null,
                       style: ElevatedButton.styleFrom(
@@ -190,6 +253,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required TextEditingController controller,
     String? hintText,
     int maxLines = 1,
+    String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,12 +283,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               borderSide: BorderSide.none,
             ),
           ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return '$label cannot be empty';
-            }
-            return null;
-          },
+          validator: validator,
         ),
       ],
     );
