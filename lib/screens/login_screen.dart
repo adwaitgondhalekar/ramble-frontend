@@ -98,14 +98,14 @@ class _LoginState extends State<Login> {
 
         // Set user data
         await prefs.setString('authToken', token);
-        await prefs.setInt(
-          'userId',
-          userid,
-        );
-        await prefs.setString('username', username);
-        await prefs.setString('firstName', first_name);
-        await prefs.setString('lastName', last_name);
-        await prefs.setString('bio', bio);
+        // await prefs.setInt(
+        //   'userId',
+        //   userid,
+        // );
+        // await prefs.setString('username', username);
+        // await prefs.setString('firstName', first_name);
+        // await prefs.setString('lastName', last_name);
+        // await prefs.setString('bio', bio);
 
         // Set isLoggedIn to true
         await prefs.setBool('isLoggedIn', true);

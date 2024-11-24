@@ -153,6 +153,7 @@ class _SignUpState extends State<SignUp> {
       // Saving the token in local storage for future API calls
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('authToken', token);
+      await prefs.setBool('isLoggedIn', true);
 
       // Success Snackbar
         ScaffoldMessenger.of(context).showSnackBar(
