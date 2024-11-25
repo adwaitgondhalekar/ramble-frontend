@@ -1,0 +1,45 @@
+\begin{table*}[t]
+\centering
+\caption{Signup Screen Unit Test}
+\label{tab:signup_screen_unit}
+\begin{tabular}{|p{5cm}|p{2.5cm}|p{3cm}|p{3cm}|p{1cm}|}
+\hline
+\textbf{Test Name} & \textbf{Input} & \textbf{Expected Output} & \textbf{Actual Output} & \textbf{Status} \\ \hline
+Username validation: valid username & john123 & Valid username & Valid username & Pass \\ \hline
+Username validation: valid username & user\_name & Valid username & Valid username & Pass \\ \hline
+Username validation: valid username & test123 & Valid username & Valid username & Pass \\ \hline
+Username validation: empty username & \textit{(empty)} & Invalid username & Please enter a username & Pass \\ \hline
+Username validation: username too short & ab & Invalid username & Please enter a valid username & Pass \\ \hline
+Username validation: invalid start character & \_startswith\_ & Invalid username & Please enter a valid username & Pass \\ \hline
+Username validation: username too long & verylongusername123456 & Invalid username & Please enter a valid username & Pass \\ \hline
+Username validation: invalid characters & user@name & Invalid username & Please enter a valid username & Pass \\ \hline
+Email validation: valid email & test@example.com & Valid email & Valid email & Pass \\ \hline
+Email validation: valid email & user.name@domain.co.in & Valid email & Valid email & Pass \\ \hline
+Email validation: valid email & user+label@example.com & Valid email & Valid email & Pass \\ \hline
+Email validation: empty email & \textit{(empty)} & Invalid email & Please enter your email & Pass \\ \hline
+Email validation: missing @ symbol & invalidemail & Invalid email & Please enter a valid email & Pass \\ \hline
+Email validation: missing domain & user@ & Invalid email & Please enter a valid email & Pass \\ \hline
+Email validation: missing username & @domain.com & Invalid email & Please enter a valid email & Pass \\ \hline
+Email validation: invalid domain format & user@.com & Invalid email & Unexpected valid result & Fail \\ \hline
+Password validation: valid password & Password123! & Valid password & Valid password & Pass \\ \hline
+Password validation: valid password & Test@2023 & Valid password & Valid password & Pass \\ \hline
+Password validation: valid password & Complex1!Password & Valid password & Valid password & Pass \\ \hline
+Password validation: empty password & \textit{(empty)} & Invalid password & Please enter your password & Pass \\ \hline
+Password validation: too short & pass & Invalid password & Must be at least 8 characters & Pass \\ \hline
+Password validation: no number or special char & password & Invalid password & Must contain at least one number & Pass \\ \hline
+Password validation: no special char & Password1 & Invalid password & Must contain at least 1 special character & Pass \\ \hline
+Password validation: no number & Password! & Invalid password & Must contain at least one number & Pass \\ \hline
+Password validation: no letter & 12345678! & Invalid password & Must contain at least 1 letter & Pass \\ \hline
+Name validation: valid name & John & Valid name & Valid name & Pass \\ \hline
+Name validation: valid name & Mary-Jane & Valid name & Valid name & Pass \\ \hline
+Name validation: valid name & O'Connor & Valid name & Valid name & Pass \\ \hline
+Name validation: empty name & \textit{(empty)} & Invalid name & Please enter your first name & Pass \\ \hline
+Name validation: numeric name & 123 & Invalid name & Please enter a valid name & Pass \\ \hline
+Name validation: alphanumeric name & John123 & Invalid name & Please enter a valid name & Pass \\ \hline
+Name validation: special characters & John@ & Invalid name & Please enter a valid name & Pass \\ \hline
+Confirm Password: matching passwords & Password123! & Passwords match & Passwords match & Pass \\ \hline
+Confirm Password: different password & Password123 & Passwords do not match & Passwords do not match & Pass \\ \hline
+Confirm Password: empty password & \textit{(empty)} & Passwords do not match & Please confirm your password & Pass \\ \hline
+Confirm Password: completely different password & DifferentPass123! & Passwords do not match & Passwords do not match & Pass \\ \hline
+\end{tabular}
+\end{table*}

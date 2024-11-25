@@ -12,34 +12,32 @@ class Login extends StatefulWidget {
   const Login({super.key});
 
   @override
-  _LoginState createState() => _LoginState();
+  LoginState createState() => LoginState();
 }
 
-class _LoginState extends State<Login> {
+class LoginState extends State<Login> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  bool _passwordVisible = false;
-  final RegExp usernameRegExp =
-      RegExp(r'^(?=.{3,15}$)(?![_])[a-zA-Z0-9_]+(?<![_])$');
+  bool passwordVisible = true;  // Initial password visibility (hidden)
+  final RegExp usernameRegExp = RegExp(r'^(?=.{3,15}$)(?![_])[a-zA-Z0-9_]+(?<![_])$');
 
-  String? _userName;
-  String? _password;
+  String? userName;
+  String? password;
 
   @override
   void initState() {
     super.initState();
-    _passwordVisible = true; // Initial password visibility
   }
 
-  String? _validateUserName(String? value) {
+  String? validateUserName(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter a username';
     } else if (!usernameRegExp.hasMatch(value)) {
       return 'Please enter a valid username';
     }
-    return null; // Return null if validation passes
+    return null;
   }
 
-  String? _validatePassword(String? value) {
+  String? validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter your password';
     }
@@ -55,15 +53,20 @@ class _LoginState extends State<Login> {
     // Loading Snackbar
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
+        key: Key('loadingSnackBar'),
         behavior: SnackBarBehavior.floating,
         backgroundColor: Color.fromRGBO(0, 174, 240, 1),
         content: Row(
           children: [
-            CircularProgressIndicator(color: Colors.white),
+            CircularProgressIndicator(
+              key: Key('loadingIndicator'),
+              color: Colors.white
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Logging in...',
+                key: Key('loadingText'),
                 style: TextStyle(color: Colors.white),
               ),
             ),
@@ -87,32 +90,19 @@ class _LoginState extends State<Login> {
         // Login success
         String token = json.decode(response.body)['access'];
         int userid = json.decode(response.body)['user-data']['id'];
-        String first_name =
-            json.decode(response.body)['user-data']['user']['first_name'];
-        String last_name =
-            json.decode(response.body)['user-data']['user']['last_name'];
+        String first_name = json.decode(response.body)['user-data']['user']['first_name'];
+        String last_name = json.decode(response.body)['user-data']['user']['last_name'];
         String bio = json.decode(response.body)['user-data']['bio'];
 
         // Save token in SharedPreferences
         SharedPreferences prefs = await SharedPreferences.getInstance();
-
-        // Set user data
         await prefs.setString('authToken', token);
-        // await prefs.setInt(
-        //   'userId',
-        //   userid,
-        // );
-        // await prefs.setString('username', username);
-        // await prefs.setString('firstName', first_name);
-        // await prefs.setString('lastName', last_name);
-        // await prefs.setString('bio', bio);
-
-        // Set isLoggedIn to true
         await prefs.setBool('isLoggedIn', true);
 
         // Success Snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            key: Key('successSnackBar'),
             behavior: SnackBarBehavior.floating,
             content: Row(
               children: [
@@ -136,17 +126,16 @@ class _LoginState extends State<Login> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-                builder: (context) => const HomeScreen(previousPage: 'home')),
+              builder: (context) => const HomeScreen(previousPage: 'home')
+            ),
           );
         });
       } else if (response.statusCode == 400) {
-        // Extract error message from the response
-        String errorMessage = json.decode(response.body)['error'] ??
-            'Invalid username or password';
+        String errorMessage = json.decode(response.body)['error'] ?? 'Invalid username or password';
 
-        // Error Snackbar for invalid username or password
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            key: const Key('errorSnackBar'),
             behavior: SnackBarBehavior.floating,
             content: Row(
               children: [
@@ -165,9 +154,9 @@ class _LoginState extends State<Login> {
           ),
         );
       } else {
-        // Generic server error Snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            key: const Key('serverErrorSnackBar'),
             behavior: SnackBarBehavior.floating,
             content: Row(
               children: [
@@ -187,12 +176,10 @@ class _LoginState extends State<Login> {
         );
       }
     } catch (e) {
-      // Hide the loading Snackbar in case of exception
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-      // Network error Snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          key: Key('networkErrorSnackBar'),
           behavior: SnackBarBehavior.floating,
           content: Row(
             children: [
@@ -214,94 +201,10 @@ class _LoginState extends State<Login> {
     }
   }
 
-  // void _showSuccessDialog(String message, Color color, IconData icon) {
-  //   showDialog(
-  //     context: context,
-  //     barrierDismissible: false, // Disable dismissing by tapping outside
-  //     builder: (BuildContext context) {
-  //       return WillPopScope(
-  //         onWillPop: () async {
-  //           return false; // Prevent the back button from dismissing the dialog
-  //         },
-  //         child: AlertDialog(
-  //           backgroundColor: color,
-  //           contentTextStyle: GoogleFonts.yaldevi(
-  //             textStyle: const TextStyle(
-  //               fontSize: 16,
-  //               fontWeight: FontWeight.bold,
-  //               color: Colors.white,
-  //             ),
-  //           ),
-  //           content: Padding(
-  //             padding: const EdgeInsets.all(16.0),
-  //             child: Column(
-  //               mainAxisSize: MainAxisSize.min,
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: [
-  //                 Icon(icon, color: Colors.white, size: 40),
-  //                 const SizedBox(height: 20),
-  //                 Text(message),
-  //               ],
-  //             ),
-  //           ),
-  //           shape: RoundedRectangleBorder(
-  //             borderRadius: BorderRadius.circular(12.0),
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
-
-  // void _showFailureDialog(String message, Color color, IconData icon) {
-  //   showDialog(
-  //     context: context,
-  //     barrierDismissible: true,
-  //     builder: (BuildContext context) {
-  //       return WillPopScope(
-  //         onWillPop: () async {
-  //           Navigator.of(context).pop(); // Close only the dialog
-  //           return false;
-  //         },
-  //         child: AlertDialog(
-  //           backgroundColor: color,
-  //           contentTextStyle: GoogleFonts.yaldevi(
-  //             textStyle: const TextStyle(
-  //               fontSize: 16,
-  //               fontWeight: FontWeight.bold,
-  //               color: Colors.white,
-  //             ),
-  //           ),
-  //           content: Padding(
-  //             padding: const EdgeInsets.all(16.0),
-  //             child: Column(
-  //               mainAxisSize: MainAxisSize.min,
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: [
-  //                 Icon(icon, color: Colors.white, size: 40),
-  //                 const SizedBox(height: 20),
-  //                 Text(message),
-  //               ],
-  //             ),
-  //           ),
-  //           shape: RoundedRectangleBorder(
-  //             borderRadius: BorderRadius.circular(12.0),
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   ).then((_) {
-  //     // Ensure the Login screen remains on the stack after dialog dismissal
-  //     Navigator.pushReplacement(
-  //       context,
-  //       MaterialPageRoute(builder: (context) => const Login()),
-  //     );
-  //   });
-  // }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('loginScreen'),
       backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
       body: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
@@ -314,9 +217,9 @@ class _LoginState extends State<Login> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(51, 60, 51, 50),
                 child: Container(
+                  key: const Key('titleContainer'),
                   alignment: Alignment.center,
-                  constraints:
-                      const BoxConstraints(minWidth: 300, minHeight: 100),
+                  constraints: const BoxConstraints(minWidth: 300, minHeight: 100),
                   child: Text(
                     'Ramble',
                     style: GoogleFonts.yaldevi(
@@ -330,35 +233,40 @@ class _LoginState extends State<Login> {
                 ),
               ),
               _buildTextField(
+                key: 'username',
                 hintText: 'Username',
                 helperText: ' ',
-                validator: _validateUserName,
-                onChanged: (value) => _userName = value,
+                validator: validateUserName,
+                onChanged: (value) => userName = value,
                 obscureText: false,
               ),
               _buildTextField(
+                key: 'password',
                 hintText: 'Password',
                 helperText: ' ',
-                validator: _validatePassword,
-                onChanged: (value) => _password = value,
-                obscureText: _passwordVisible,
+                validator: validatePassword,
+                onChanged: (value) => password = value,
+                obscureText: passwordVisible,
                 suffixIcon: IconButton(
+                  key: const Key('passwordVisibilityToggle'),
                   onPressed: () {
                     setState(() {
-                      _passwordVisible = !_passwordVisible;
+                      passwordVisible = !passwordVisible;
                     });
                   },
-                  icon: _passwordVisible
-                      ? const Icon(Icons.visibility_off)
-                      : const Icon(Icons.visibility),
+                  icon: Icon(
+                    passwordVisible ? Icons.visibility_off : Icons.visibility,
+                    key: Key(passwordVisible ? 'visibilityOffIcon' : 'visibilityIcon'),
+                  ),
                 ),
               ),
               const Padding(padding: EdgeInsets.only(top: 50)),
               ElevatedButton(
+                key: const Key('loginButton'),
                 onPressed: () {
                   if (_formKey.currentState?.validate() ?? false) {
-                    FocusScope.of(context).unfocus(); // Dismiss the keyboard
-                    loginUser(_userName!, _password!); // Trigger login
+                    FocusScope.of(context).unfocus();
+                    loginUser(userName!, password!);
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -389,6 +297,7 @@ class _LoginState extends State<Login> {
   }
 
   Widget _buildTextField({
+    required String key,
     required String hintText,
     required String helperText,
     required FormFieldValidator<String>? validator,
@@ -402,6 +311,7 @@ class _LoginState extends State<Login> {
         width: 295,
         height: 65,
         child: TextFormField(
+          key: Key('${key}Field'),
           autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: validator,
           onChanged: onChanged,
@@ -418,8 +328,7 @@ class _LoginState extends State<Login> {
               ),
             ),
             helperText: helperText,
-            contentPadding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 40),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 40),
             errorStyle: GoogleFonts.yaldevi(
               textStyle: const TextStyle(
                 fontSize: 10,
@@ -447,6 +356,7 @@ class _LoginState extends State<Login> {
 
   Widget _buildSignUpPrompt() {
     return RichText(
+      key: const Key('signupPrompt'),
       text: TextSpan(
         text: 'Don\'t have an account? ',
         style: GoogleFonts.yaldevi(

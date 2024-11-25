@@ -1,0 +1,28 @@
+\begin{table*}[t]
+\centering
+\caption{Login Screen Unit Test Results}
+\label{tab:login_screen_unit}
+\begin{tabular}{|p{5cm}|p{2.5cm}|p{3cm}|p{3cm}|p{1cm}|}
+\hline
+\textbf{Test Name} & \textbf{Input} & \textbf{Expected Output} & \textbf{Actual Output} & \textbf{Status} \\ \hline
+Username validation: alphanumeric & john123 & null (valid username) & valid & Pass \\ \hline
+Username validation: with underscore & user\_name & null (valid username) & valid & Pass \\ \hline
+Username validation: alphanumeric & test123 & null (valid username) & valid & Pass \\ \hline
+Username validation: alphabetic only & validuser & null (valid username) & valid & Pass \\ \hline
+Username validation: mixed characters & a1\_b2 & null (valid username) & valid & Pass \\ \hline
+Username validation: empty username & \textit{(empty)} & Please enter a valid username & Please enter a username & Pass \\ \hline
+Username validation: too short (min 3) & ab & Please enter a valid username & Please enter a valid username & Pass \\ \hline
+Username validation: starts with underscore & \_startswith\_ & Please enter a valid username & Please enter a valid username & Pass \\ \hline
+Username validation: ends with underscore & ends\_with\_ & Please enter a valid username & Please enter a valid username & Pass \\ \hline
+Username validation: too long (max 15) & very\_long\_username\_123 & Please enter a valid username & Please enter a valid username & Pass \\ \hline
+Username validation: special characters & user@name & Please enter a valid username & Please enter a valid username & Pass \\ \hline
+Username validation: contains space & user name & Please enter a valid username & Please enter a valid username & Pass \\ \hline
+Username validation: null value & null & Please enter a valid username & Please enter a username & Pass \\ \hline
+Password validation: simple valid password & password123 & null (valid password) & valid & Pass \\ \hline
+Password validation: mixed case password & TestPassword & null (valid password) & valid & Pass \\ \hline
+Password validation: complex password & Pass123!@# & null (valid password) & valid & Pass \\ \hline
+Password validation: numeric password & 12345678 & null (valid password) & valid & Pass \\ \hline
+Password validation: empty password & \textit{(empty)} & Please enter your password & Please enter your password & Pass \\ \hline
+Password validation: null password & null & Please enter your password & Please enter your password & Pass \\ \hline
+\end{tabular}
+\end{table*}

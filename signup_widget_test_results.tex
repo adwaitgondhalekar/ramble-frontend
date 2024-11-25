@@ -1,0 +1,38 @@
+\begin{table*}[t]
+\centering
+\caption{Signup Screen Widget Test Results}
+\label{tab:signup_screen_widget}
+\begin{tabular}{|p{2.5cm}|p{2.5cm}|p{3cm}|p{3cm}|p{3cm}|p{1cm}|}
+\hline
+\textbf{Category} & \textbf{Test Case} & \textbf{Action} & \textbf{Expected Behavior} & \textbf{Actual Behavior} & \textbf{Status} \\ \hline
+UI Rendering & Component Visibility & Render First name field & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Last name field & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Username field & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Email field & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Password field & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Confirm password field & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Sign up button & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Login prompt text & Component should be visible & Component is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render Login link & Component should be visible & Component is visible & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit form without First name validation & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit form without Last name validation & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit form without Username validation & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit form without Email validation & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit form without Password validation & Should show error message & Error message displayed & Pass \\ \hline
+Password Field & Initial Visibility & Check initial password field state & Password should be obscured & Password is obscured & Pass \\ \hline
+Password Field & Toggle Visibility & Tap visibility toggle button & Password visibility should toggle & Password was toggled to visible & Pass \\ \hline
+Form Validation & Invalid Input & Enter invalid input in firstNameField & Should accept input & Input entered successfully & Pass \\ \hline
+Form Validation & Invalid Input & Enter invalid input in lastNameField & Should accept input & Input entered successfully & Pass \\ \hline
+Form Validation & Invalid Input & Enter invalid input in userNameField & Should accept input & Input entered successfully & Pass \\ \hline
+Form Validation & Invalid Input & Enter invalid input in emailField & Should accept input & Input entered successfully & Pass \\ \hline
+Form Validation & Invalid Input & Enter invalid input in passwordField & Should accept input & Input entered successfully & Pass \\ \hline
+Form Validation & Invalid Input & Enter invalid input in confirmPasswordField & Should accept input & Input entered successfully & Pass \\ \hline
+Form Validation & Error Message & Check error message for firstNameField & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Error Message & Check error message for lastNameField & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Error Message & Check error message for userNameField & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Error Message & Check error message for emailField & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Error Message & Check error message for passwordField & Should show error message & Error message displayed & Pass \\ \hline
+Form Validation & Error Message & Check error message for confirmPasswordField & Should show error message & Error message displayed & Pass \\ \hline
+Navigation & Login Navigation & Tap login button & Should navigate to login screen & Navigation successful & Pass \\ \hline
+\end{tabular}
+\end{table*}

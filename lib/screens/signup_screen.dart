@@ -12,36 +12,36 @@ class SignUp extends StatefulWidget {
   const SignUp({super.key});
 
   @override
-  _SignUpState createState() => _SignUpState();
+  SignUpState createState() => SignUpState();
 }
 
-class _SignUpState extends State<SignUp> {
+class SignUpState extends State<SignUp> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  bool _passwordVisible = false;
-  bool _confirmPasswordVisible = false;
-  final bool _isLoading = false;
+  bool passwordVisible = false;
+  bool confirmPasswordVisible = false;
+  final bool isLoading = false;
 
   // Define regex patterns
-  final RegExp _emailRegex = RegExp(r'^\S+@\S+$');
+  final RegExp emailRegex = RegExp(r'^\S+@\S+$');
   final RegExp nameRegex = RegExp(r"^[A-Za-z]+(?:[' -][A-Za-z]+)*$");
   final RegExp usernameRegExp =
       RegExp(r'^(?=.{3,15}$)(?![_])[a-zA-Z0-9_]+(?<![_])$');
 
-  String? _firstName;
-  String? _lastName;
-  String? _userName;
-  String? _email;
-  String? _password;
-  String? _confirmPassword;
+  String? firstName;
+  String? lastName;
+  String? userName;
+  String? email;
+  String? password;
+  String? confirmPassword;
 
   @override
   void initState() {
     super.initState();
-    _passwordVisible = true;
-    _confirmPasswordVisible = true;
+    passwordVisible = true;
+    confirmPasswordVisible = true;
   }
 
-  String? _validateUserName(String? value) {
+  String? validateUserName(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter a username';
     } else if (!usernameRegExp.hasMatch(value)) {
@@ -50,7 +50,7 @@ class _SignUpState extends State<SignUp> {
     return null; // Return null if validation passes
   }
 
-  String? _validateFirstName(String? value) {
+  String? validateFirstName(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter your first name';
     } else if (!nameRegex.hasMatch(value)) {
@@ -59,7 +59,7 @@ class _SignUpState extends State<SignUp> {
     return null; // Return null if validation passes
   }
 
-  String? _validateLastName(String? value) {
+  String? validateLastName(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter your last name';
     } else if (!nameRegex.hasMatch(value)) {
@@ -68,16 +68,16 @@ class _SignUpState extends State<SignUp> {
     return null; // Return null if validation passes
   }
 
-  String? _validateEmail(String? value) {
+  String? validateEmail(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter your email';
-    } else if (!_emailRegex.hasMatch(value)) {
+    } else if (!emailRegex.hasMatch(value)) {
       return 'Please enter a valid email';
     }
     return null; // Return null if validation passes
   }
 
-  String? _validatePassword(String? value) {
+  String? validatePassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please enter your password'; // Message for empty password
     } else if (value.length < 8) {
@@ -92,20 +92,21 @@ class _SignUpState extends State<SignUp> {
     return null; // Return null if validation passes
   }
 
-  String? _validateConfirmPassword(String? value) {
+  String? validateConfirmPassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please confirm your password';
-    } else if (value != _password) {
+    } else if (value != password) {
       return 'Passwords do not match';
     }
     return null; // Return null if validation passes
   }
 
   Future<void> signupUser(BuildContext context, String username, String email,
-    String password, String firstName, String lastName) async {
-  final url = Uri.parse('${USER_SERVICE_URL}signup/'); // Replace with your Django server IP
+      String password, String firstName, String lastName) async {
+    final url =
+        Uri.parse('${USER_SERVICE_URL}signup/'); // Replace with your server URL
 
-  // Loading Snackbar
+    // Loading Snackbar
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         behavior: SnackBarBehavior.floating,
@@ -126,36 +127,36 @@ class _SignUpState extends State<SignUp> {
       ),
     );
 
-  try {
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        "user": {
-          'username': username,
-          'email': email,
-          'password': password,
-          'first_name': firstName,
-          'last_name': lastName
-        },
-        "bio": "user bio"
-      }),
-    );
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          "user": {
+            'username': username,
+            'email': email,
+            'password': password,
+            'first_name': firstName,
+            'last_name': lastName
+          },
+          "bio": "user bio"
+        }),
+      );
 
-    // Close the loading Snackbar
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      // Close the loading Snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-    if (response.statusCode == 201) {
-      // Success response from the server
-      final data = json.decode(response.body);
-      final token = data['access'];
+      if (response.statusCode == 201) {
+        // Success response from the server
+        final data = json.decode(response.body);
+        final token = data['access'];
 
-      // Saving the token in local storage for future API calls
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('authToken', token);
-      await prefs.setBool('isLoggedIn', true);
+        // Saving the token in local storage for future API calls
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('authToken', token);
+        await prefs.setBool('isLoggedIn', true);
 
-      // Success Snackbar
+        // Success Snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             behavior: SnackBarBehavior.floating,
@@ -176,74 +177,76 @@ class _SignUpState extends State<SignUp> {
           ),
         );
 
-      // Delay before navigating to HomePage
-      Future.delayed(const Duration(seconds: 3), () {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(previousPage: 'home',),
+        // Delay before navigating to HomePage
+        Future.delayed(const Duration(seconds: 3), () {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HomeScreen(
+                previousPage: 'home',
+              ),
+            ),
+          );
+        });
+      } else {
+        // Parse server error response
+        final errorResponse = json.decode(response.body);
+        String errorMessage = 'Signup failed'; // Default error message
+
+        // Extract error details if present
+        if (errorResponse.containsKey('user')) {
+          final userError = errorResponse['user'];
+          if (userError is Map && userError.containsKey('username')) {
+            errorMessage = userError['username'][0];
+          } else if (userError is Map && userError.containsKey('email')) {
+            errorMessage = userError['email'][0];
+          }
+        }
+
+        // Show failure Snackbar with parsed error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.red),
+                SizedBox(width: 10),
+                Text(errorMessage),
+              ],
+            ),
+            duration: Duration(seconds: 3),
           ),
         );
-      });
-    } else {
-      // Parse server error response
-      final errorResponse = json.decode(response.body);
-      String errorMessage = 'Signup failed'; // Default error message
-
-      // Extract error details if present
-      if (errorResponse.containsKey('user')) {
-        final userError = errorResponse['user'];
-        if (userError is Map && userError.containsKey('username')) {
-          errorMessage = userError['username'][0];
-        } else if (userError is Map && userError.containsKey('email')) {
-          errorMessage = userError['email'][0];
-        }
       }
+    } catch (e) {
+      // Hide the loading Snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-      // Show failure Snackbar with parsed error
+      // Show error Snackbar
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Color.fromRGBO(0, 174, 240, 1),
+        const SnackBar(
+          backgroundColor: Colors.red,
           content: Row(
             children: [
-              Icon(Icons.error, color: Colors.red),
+              Icon(Icons.error_outline, color: Colors.white),
               SizedBox(width: 10),
-              Text(errorMessage),
+              Text('An error occurred. Please try again.'),
             ],
           ),
           duration: Duration(seconds: 3),
         ),
       );
+
+      print("Error: $e");
     }
-  } catch (e) {
-    // Hide the loading Snackbar
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-    // Show error Snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: Colors.red,
-        content: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.white),
-            SizedBox(width: 10),
-            Text('An error occurred. Please try again.'),
-          ],
-        ),
-        duration: Duration(seconds: 3),
-      ),
-    );
-
-    print("Error: $e");
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
       body: SingleChildScrollView(
+        key: const Key('signUpScrollView'),
         physics: const ClampingScrollPhysics(),
         child: Form(
           key: _formKey,
@@ -270,60 +273,66 @@ class _SignUpState extends State<SignUp> {
                 ),
               ),
               _buildTextField(
+                key: Key('firstNameField'),
                 hintText: 'First Name',
                 helperText: ' ',
-                validator: _validateFirstName,
-                onChanged: (value) => _firstName = value,
+                validator: validateFirstName,
+                onChanged: (value) => firstName = value,
               ),
               _buildTextField(
+                key: Key('lastNameField'),
                 hintText: 'Last Name',
                 helperText: ' ',
-                validator: _validateLastName,
-                onChanged: (value) => _lastName = value,
+                validator: validateLastName,
+                onChanged: (value) => lastName = value,
               ),
               _buildTextField(
+                key: Key('userNameField'),
                 hintText: 'UserName',
                 helperText: ' ',
-                validator: _validateUserName,
-                onChanged: (value) => _userName = value,
+                validator: validateUserName,
+                onChanged: (value) => userName = value,
               ),
               _buildTextField(
+                key: Key('emailField'),
                 hintText: 'Email',
                 helperText: ' ',
-                validator: _validateEmail,
-                onChanged: (value) => _email = value,
+                validator: validateEmail,
+                onChanged: (value) => email = value,
               ),
               _buildTextField(
+                key: Key('passwordField'),
                 hintText: 'Password',
                 helperText: ' ',
-                validator: _validatePassword,
-                onChanged: (value) => _password = value,
-                obscureText: _passwordVisible,
+                validator: validatePassword,
+                onChanged: (value) => password = value,
+                obscureText: passwordVisible,
                 suffixIcon: IconButton(
                   onPressed: () {
                     setState(() {
-                      _passwordVisible = !_passwordVisible; // Toggle visibility
+                      passwordVisible = !passwordVisible; // Toggle visibility
                     });
                   },
-                  icon: _passwordVisible
+                  icon: passwordVisible
                       ? const Icon(Icons.visibility_off)
                       : const Icon(Icons.visibility),
                 ),
               ),
               _buildTextField(
+                key: Key('confirmPasswordField'),
                 hintText: 'Confirm Password',
                 helperText: ' ',
-                validator: _validateConfirmPassword,
-                onChanged: (value) => _confirmPassword = value,
-                obscureText: _confirmPasswordVisible,
+                validator: validateConfirmPassword,
+                onChanged: (value) => confirmPassword = value,
+                obscureText: confirmPasswordVisible,
                 suffixIcon: IconButton(
                   onPressed: () {
                     setState(() {
-                      _confirmPasswordVisible =
-                          !_confirmPasswordVisible; // Toggle visibility
+                      confirmPasswordVisible =
+                          !confirmPasswordVisible; // Toggle visibility
                     });
                   },
-                  icon: _confirmPasswordVisible
+                  icon: confirmPasswordVisible
                       ? const Icon(Icons.visibility_off)
                       : const Icon(Icons.visibility),
                 ),
@@ -340,11 +349,11 @@ class _SignUpState extends State<SignUp> {
                             .unfocus(); // Dismiss the keyboard
                         signupUser(
                           context,
-                          _userName!,
-                          _email!,
-                          _password!,
-                          _firstName!,
-                          _lastName!,
+                          userName!,
+                          email!,
+                          password!,
+                          firstName!,
+                          lastName!,
                         );
                       }
                     },
@@ -369,19 +378,30 @@ class _SignUpState extends State<SignUp> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(51, 25, 51, 0),
-                child: RichText(
-                  text: TextSpan(
-                    text: 'Already Have An Account? ',
-                    style: GoogleFonts.yaldevi(
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Already Have An Account? ',
+                      style: GoogleFonts.yaldevi(
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    children: <TextSpan>[
-                      TextSpan(
-                        text: 'Login',
+                    TextButton(
+                      key: Key('loginButton'),
+                      onPressed: () {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const Login(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        'Login',
                         style: GoogleFonts.yaldevi(
                           textStyle: const TextStyle(
                             fontSize: 12,
@@ -389,17 +409,9 @@ class _SignUpState extends State<SignUp> {
                             color: Color.fromRGBO(0, 174, 240, 1),
                           ),
                         ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (context) => const Login(),
-                              ),
-                            );
-                          },
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -410,6 +422,7 @@ class _SignUpState extends State<SignUp> {
   }
 
   Widget _buildTextField({
+    Key? key,
     required String hintText,
     required String helperText,
     required FormFieldValidator<String>? validator,
@@ -430,6 +443,7 @@ class _SignUpState extends State<SignUp> {
         width: 295,
         height: 65,
         child: TextFormField(
+          key: key,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: validator,
           onChanged: onChanged,

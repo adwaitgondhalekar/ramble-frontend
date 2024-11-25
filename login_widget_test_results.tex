@@ -1,0 +1,21 @@
+\begin{table*}[t]
+\centering
+\caption{Login Screen Widget Test Results}
+\label{tab:login_screen_widget}
+\begin{tabular}{|p{2.5cm}|p{2.5cm}|p{3cm}|p{3cm}|p{3cm}|p{1cm}|}
+\hline
+\textbf{Category} & \textbf{Test Case} & \textbf{Action} & \textbf{Expected Behavior} & \textbf{Actual Behavior} & \textbf{Status} \\ \hline
+UI Rendering & Component Visibility & Render app title & Ramble title should be visible & Title is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render username field & Username field should be visible & Field is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render password field & Password field should be visible & Field is visible & Pass \\ \hline
+UI Rendering & Component Visibility & Render login button & Login button should be visible & Button is visible & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit empty username & Should show username error & Error shown & Pass \\ \hline
+Form Validation & Empty Field Validation & Submit empty password & Should show password error & Error shown & Pass \\ \hline
+Form Validation & Username Format & Test invalid username: starts with underscore & Should show format error & Error shown & Pass \\ \hline
+Form Validation & Username Format & Test invalid username: too short & Should show format error & Error shown & Pass \\ \hline
+Form Validation & Username Format & Test invalid username: too long & Should show format error & Error shown & Pass \\ \hline
+Form Validation & Username Format & Test invalid username: special characters & Should show format error & Error shown & Pass \\ \hline
+Password Field & Initial Visibility & Check initial password state & Password should be hidden & Password is hidden & Pass \\ \hline
+Password Field & Visibility Toggle & Toggle password visibility & Should show visibility icon & Password visible & Pass \\ \hline
+\end{tabular}
+\end{table*}

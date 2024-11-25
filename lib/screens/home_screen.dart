@@ -12,28 +12,43 @@ import 'package:ramble/widgets/custom_bottom_navbar.dart';
 import 'package:ramble/screens/create_post_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.previousPage});
-
   final String previousPage;
+  final http.Client? httpClient; // For dependency injection in tests
+
+  const HomeScreen({
+    super.key, 
+    required this.previousPage,
+    this.httpClient
+  });
 
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  HomeScreenState createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
+  late final http.Client _client;
   List<dynamic> posts = [];
   bool isLoading = true;
-  bool isFetching = false; // Prevent overlapping fetches
-  bool hasFetchedPosts = false; // Tracks if posts have been fetched
+  bool isFetching = false;
+  bool hasFetchedPosts = false;
 
   @override
   void initState() {
     super.initState();
+    _client = widget.httpClient ?? http.Client();
     fetchPosts();
   }
 
-  Future<void> fetchPosts({bool isRefresh = false}) async {
-    if (isFetching) return;
+  @override
+  void dispose() {
+    if (widget.httpClient == null) {
+      _client.close();
+    }
+    super.dispose();
+  }
+
+  Future<List<dynamic>> fetchPosts({bool isRefresh = false}) async {
+    if (isFetching) return posts;
 
     setState(() {
       isFetching = true;
@@ -43,10 +58,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('authToken');
-      final userId =
-          prefs.getInt('userId'); // Current user's ID from preferences.
+      final userId = prefs.getInt('userId');
 
-      final response = await http.get(
+      final response = await _client.get(
         Uri.parse('${POST_SERVICE_URL}feed/'),
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
@@ -56,35 +70,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        // Update isLiked for each post based on the current user's ID.
         final updatedPosts = (data as List).map((post) {
           post['isLiked'] = (post['likedBy'] as List<dynamic>).contains(userId);
           return post;
         }).toList();
 
         updatedPosts.sort((a, b) => DateTime.parse(b['timestamp'])
-            .compareTo(DateTime.parse(a['timestamp']))); // Sort posts.
+            .compareTo(DateTime.parse(a['timestamp'])));
 
         setState(() {
           posts = updatedPosts;
           hasFetchedPosts = true;
           isLoading = false;
         });
+        return posts;
       } else {
-        _showErrorSnackbar(
-            'Failed to load posts. Status code: ${response.statusCode}');
+        showErrorSnackbar('Failed to load posts. Status code: ${response.statusCode}');
+        return [];
       }
     } catch (e) {
-      _showErrorSnackbar('An error occurred while fetching posts.');
+      showErrorSnackbar('An error occurred while fetching posts.');
+      return [];
     } finally {
       setState(() => isFetching = false);
     }
   }
 
-  void _showErrorSnackbar(String message) {
+  void showErrorSnackbar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        key: const Key('errorSnackbar'),
         content: Text(message, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.red,
         duration: const Duration(seconds: 3),
@@ -92,9 +108,88 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<bool> likePost(Map<String, dynamic> post) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+
+      final response = await _client.patch(
+        Uri.parse('${POST_SERVICE_URL}post/${post['id']}/'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          "action": "like",
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            post['isLiked'] = true;
+            post['likes'] += 1;
+          });
+        }
+        return true;
+      } else {
+        showErrorSnackbar('Failed to like the post.');
+        return false;
+      }
+    } catch (e) {
+      showErrorSnackbar('An error occurred while liking the post.');
+      return false;
+    }
+  }
+
+  Future<bool> unlikePost(Map<String, dynamic> post) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+
+      final response = await _client.patch(
+        Uri.parse('${POST_SERVICE_URL}post/${post['id']}/'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          "action": "unlike",
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            post['isLiked'] = false;
+            post['likes'] -= 1;
+          });
+        }
+        return true;
+      } else {
+        showErrorSnackbar('Failed to unlike the post.');
+        return false;
+      }
+    } catch (e) {
+      showErrorSnackbar('An error occurred while unliking the post.');
+      return false;
+    }
+  }
+
+  Future<void> handleLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Login())
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const Key('homeScreen'),
       backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(57.0),
@@ -104,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               AppBar(
+                key: const Key('homeAppBar'),
                 iconTheme: const IconThemeData(color: Colors.white),
                 backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
                 title: Text(
@@ -126,30 +222,27 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      drawer: _buildDrawer(),
+      drawer: buildDrawer(),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          ? const Center(
+              child: CircularProgressIndicator(
+                key: Key('loadingIndicator'),
+                color: Colors.white
+              )
+            )
           : RefreshIndicator(
+              key: const Key('refreshIndicator'),
               backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
               color: Colors.white,
               onRefresh: () => fetchPosts(isRefresh: true),
               child: hasFetchedPosts && posts.isEmpty
-                  ? _buildEmptyFeed()
-                  : _buildPostList(),
+                  ? buildEmptyFeed()
+                  : buildPostList(),
             ),
       floatingActionButton: FloatingActionButton(
+        key: const Key('createPostButton'),
         shape: const CircleBorder(),
-        onPressed: () async {
-          final postCreated = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreatePostScreen()),
-          );
-
-          if (postCreated == true) {
-            // Refresh the feed after creating a new post.
-            fetchPosts(isRefresh: true);
-          }
-        },
+        onPressed: () => navigateToCreatePost(),
         backgroundColor: const Color.fromRGBO(0, 174, 240, 1),
         child: const Icon(
           Icons.add,
@@ -157,35 +250,53 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       bottomNavigationBar: CustomBottomNavBar(
+        key: const Key('bottomNavBar'),
         currentIndex: 0,
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SearchScreen(previousPage: 'home'),
-              ),
-            );
-          } else if (index == 2) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ProfileScreen(previousPage: 'home'),
-              ),
-            );
-          }
-        },
+        onTap: handleNavigation,
       ),
     );
   }
 
-  Widget _buildDrawer() {
+  Future<void> navigateToCreatePost() async {
+    final postCreated = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreatePostScreen()),
+    );
+
+    if (postCreated == true) {
+      await fetchPosts(isRefresh: true);
+    }
+  }
+
+  void handleNavigation(int index) {
+    if (!mounted) return;
+    
+    if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const SearchScreen(previousPage: 'home'),
+        ),
+      );
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ProfileScreen(previousPage: 'home'),
+        ),
+      );
+    }
+  }
+
+  Widget buildDrawer() {
     return Drawer(
+      key: const Key('drawer'),
       child: ListView(
         children: [
           DrawerHeader(
-            decoration:
-                const BoxDecoration(color: Color.fromRGBO(62, 110, 162, 1)),
+            decoration: const BoxDecoration(
+              color: Color.fromRGBO(62, 110, 162, 1)
+            ),
             child: Center(
               child: Text(
                 'Ramble',
@@ -200,25 +311,22 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           ListTile(
+            key: const Key('logoutButton'),
             leading: const Icon(Icons.logout),
             title: Text(
               'Logout',
               style: GoogleFonts.yaldevi(fontWeight: FontWeight.bold),
             ),
-            onTap: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.clear();
-              Navigator.pushReplacement(context,
-                  MaterialPageRoute(builder: (context) => const Login()));
-            },
+            onTap: handleLogout,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyFeed() {
+  Widget buildEmptyFeed() {
     return Center(
+      key: const Key('emptyFeedMessage'),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Text(
@@ -236,18 +344,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPostList() {
+  Widget buildPostList() {
     return ListView.builder(
+      key: const Key('postList'),
       itemCount: posts.length,
-      itemBuilder: (context, index) => _buildPostCard(posts[index]),
+      itemBuilder: (context, index) => buildPostCard(posts[index]),
     );
   }
 
-  Widget _buildPostCard(Map<String, dynamic> post) {
+  Widget buildPostCard(Map<String, dynamic> post) {
     final formattedDate = DateFormat('MMM d, yyyy, h:mm a')
         .format(DateTime.parse(post['timestamp']).toLocal());
 
     return Card(
+      key: Key('postCard_${post['id']}'),
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -276,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             post['username'] ?? 'Anonymous',
+                            key: Key('username_${post['id']}'),
                             style: GoogleFonts.yaldevi(
                               textStyle: const TextStyle(
                                 fontSize: 16,
@@ -286,6 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           Text(
                             formattedDate,
+                            key: Key('timestamp_${post['id']}'),
                             style: GoogleFonts.yaldevi(
                               textStyle: const TextStyle(
                                 fontSize: 12,
@@ -298,6 +410,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 8),
                       Text(
                         post['text'] ?? '',
+                        key: Key('postText_${post['id']}'),
                         style: GoogleFonts.yaldevi(
                           textStyle: const TextStyle(
                             fontSize: 14,
@@ -314,11 +427,12 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               children: [
                 GestureDetector(
+                  key: Key('likeButton_${post['id']}'),
                   onTap: () async {
                     if (post['isLiked'] == true) {
-                      await _unlikePost(post);
+                      await unlikePost(post);
                     } else {
-                      await _likePost(post);
+                      await likePost(post);
                     }
                   },
                   child: Icon(
@@ -332,6 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 8),
                 Text(
                   post['likes'].toString(),
+                  key: Key('likeCount_${post['id']}'),
                   style: GoogleFonts.yaldevi(
                     textStyle: const TextStyle(
                       fontSize: 12,
@@ -345,63 +460,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _likePost(Map<String, dynamic> post) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('authToken');
-
-      final response = await http.patch(
-        Uri.parse('${POST_SERVICE_URL}post/${post['id']}/'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          "action": "like",
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          post['isLiked'] = true;
-          post['likes'] += 1;
-        });
-      } else {
-        _showErrorSnackbar('Failed to like the post.');
-      }
-    } catch (e) {
-      _showErrorSnackbar('An error occurred while liking the post.');
-    }
-  }
-
-  Future<void> _unlikePost(Map<String, dynamic> post) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('authToken');
-
-      final response = await http.patch(
-        Uri.parse('${POST_SERVICE_URL}post/${post['id']}/'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          "action": "unlike",
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          post['isLiked'] = false;
-          post['likes'] -= 1;
-        });
-      } else {
-        _showErrorSnackbar('Failed to unlike the post.');
-      }
-    } catch (e) {
-      _showErrorSnackbar('An error occurred while unliking the post.');
-    }
   }
 }
