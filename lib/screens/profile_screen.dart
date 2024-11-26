@@ -10,13 +10,22 @@ import 'home_screen.dart';
 import 'search_screen.dart';
 import 'package:ramble/service_urls.dart';
 
+
+
 class ProfileScreen extends StatefulWidget {
   final String previousPage;
-  const ProfileScreen({super.key, required this.previousPage});
+  final http.Client? httpClient;  // Add this line
+  
+  const ProfileScreen({
+    super.key, 
+    required this.previousPage,
+    this.httpClient,  // Add this line
+  });
 
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
+
 
 class _ProfileScreenState extends State<ProfileScreen> {
   List<dynamic> posts = [];
@@ -38,14 +47,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> fetchProfileData() async {
-    setState(() => isLoading = true);
+  setState(() => isLoading = true);
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('authToken');
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('authToken');
+    final client = widget.httpClient ?? http.Client();
 
-      // Fetch user profile details
-      final profileResponse = await http.get(
+    // Fetch user profile details
+    final profileResponse = await client.get(
         Uri.parse('${USER_SERVICE_URL}profile/'),
         headers: {
           'Content-Type': 'application/json; charset=UTF-8',
@@ -53,75 +63,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       );
 
-      if (profileResponse.statusCode == 200) {
-        final profileData = json.decode(profileResponse.body);
+    if (profileResponse.statusCode == 200) {
+      final profileData = json.decode(profileResponse.body);
 
-        setState(() {
-          username = profileData['username'];
-          firstName = profileData['first_name'];
-          lastName = profileData['last_name'];
-          bio = profileData['bio'];
-        });
-      } else {
-        _showErrorSnackbar('Failed to load profile data');
-      }
+      setState(() {
+        username = profileData['username'];
+        firstName = profileData['first_name'];
+        lastName = profileData['last_name'];
+        bio = profileData['bio'];
+      });
+    } else {
+      _showErrorSnackbar('Failed to load profile data');
+      return; // Early return on error
+    }
 
-      // Fetch posts
-      final postsResponse = await http.get(
-        Uri.parse('${POST_SERVICE_URL}posts/'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+    // Fetch posts
+    final postsResponse = await client.get(
+      Uri.parse('${POST_SERVICE_URL}posts/'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      if (postsResponse.statusCode == 200) {
-        final List<dynamic> postData = json.decode(postsResponse.body);
-        postData.sort((a, b) => DateTime.parse(b['timestamp'])
-            .compareTo(DateTime.parse(a['timestamp']))); // Sort posts
-        setState(() {
-          posts = postData;
-          postCount = postData.length;
-        });
-      }
+    if (postsResponse.statusCode == 200) {
+      final List<dynamic> postData = json.decode(postsResponse.body);
+      postData.sort((a, b) => DateTime.parse(b['timestamp'])
+          .compareTo(DateTime.parse(a['timestamp'])));
+      setState(() {
+        posts = postData;
+        postCount = postData.length;
+      });
+    } else {
+      _showErrorSnackbar('Failed to load posts');
+      return;
+    }
 
-      // Fetch followers count
-      final followersResponse = await http.get(
-        Uri.parse('${FOLLOW_SERVICE_URL}followers/'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+    // Fetch followers count
+    final followersResponse = await client.get(
+      Uri.parse('${FOLLOW_SERVICE_URL}followers/'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      if (followersResponse.statusCode == 200) {
-        setState(() {
-          followersCount =
-              json.decode(followersResponse.body)['total_followers'];
-        });
-      }
+    if (followersResponse.statusCode == 200) {
+      setState(() {
+        followersCount =
+            json.decode(followersResponse.body)['total_followers'];
+      });
+    }
 
-      // Fetch following count
-      final followingResponse = await http.get(
-        Uri.parse('${FOLLOW_SERVICE_URL}followees/'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $token',
-        },
-      );
+    // Fetch following count
+    final followingResponse = await client.get(
+      Uri.parse('${FOLLOW_SERVICE_URL}followees/'),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-      if (followingResponse.statusCode == 200) {
-        setState(() {
-          followingCount =
-              json.decode(followingResponse.body)['total_following'];
-        });
-      }
-    } catch (error) {
-      _showErrorSnackbar('Error fetching profile data: $error');
-    } finally {
+    if (followingResponse.statusCode == 200) {
+      setState(() {
+        followingCount =
+            json.decode(followingResponse.body)['total_following'];
+      });
+    }
+  } catch (error) {
+    _showErrorSnackbar('Error fetching profile data: $error');
+  } finally {
+    if (mounted) {
       setState(() => isLoading = false);
     }
   }
+}
 
   void _showErrorSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

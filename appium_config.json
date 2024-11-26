@@ -1,0 +1,9 @@
+{
+    "platformName": "iOS",
+    "platformVersion": "18.1",
+    "deviceName": "iPhone 16 Pro",
+    "app": "build/ios/Debug-iphoneos/Runner.app",
+    "automationName": "Flutter",
+    "udid": "022C77B3-AC6C-44C1-B382-80A8D8FCC015",
+    "noReset": true
+}

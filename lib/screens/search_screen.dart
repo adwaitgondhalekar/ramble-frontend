@@ -1,17 +1,21 @@
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:ramble/service_urls.dart';
 import 'package:ramble/screens/home_screen.dart';
 import 'package:ramble/screens/profile_screen.dart';
 import 'package:ramble/widgets/custom_bottom_navbar.dart';
-
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key, required this.previousPage});
-
   final String previousPage;
+  final http.Client? httpClient;
+
+  const SearchScreen({
+    super.key,
+    required this.previousPage,
+    this.httpClient,
+  });
 
   @override
   _SearchScreenState createState() => _SearchScreenState();
@@ -22,12 +26,31 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Map<String, dynamic>> searchResults = [];
   bool isLoading = false;
   bool noResultsFound = false;
+  String? errorMessage;
+  late final http.Client _client;
+
+  @override
+  void initState() {
+    super.initState();
+    _client = widget.httpClient ?? http.Client();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    if (widget.httpClient == null) {
+      _client.close();
+    }
+    super.dispose();
+  }
 
   Future<void> _searchUsers(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
         searchResults = [];
-        noResultsFound = false;
+        noResultsFound = false; // Reset noResultsFound
+        isLoading = false;
+        errorMessage = null;
       });
       return;
     }
@@ -35,27 +58,30 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() {
       isLoading = true;
       noResultsFound = false;
+      errorMessage = null;
     });
 
-    final String searchApiUrl = '${USER_SERVICE_URL}search/users/?q=$query';
-    final String followingApiUrl = '${FOLLOW_SERVICE_URL}followees/';
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
-
-    if (token == null || token.isEmpty) {
-      _showErrorSnackbar('Authentication token is missing. Please log in again.');
-      setState(() {
-        isLoading = false;
-      });
-      return;
-    }
-
     try {
-      // Perform both API calls in parallel
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+
+      if (token == null) {
+        setState(() {
+          errorMessage = 'Authentication token is missing';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final searchApiUrl = Uri.parse('${USER_SERVICE_URL}search/users/?q=$query');
+      final followingApiUrl = Uri.parse('${FOLLOW_SERVICE_URL}followees/');
+
       final responses = await Future.wait([
-        http.get(Uri.parse(searchApiUrl), headers: {'Authorization': 'Bearer $token'}),
-        http.get(Uri.parse(followingApiUrl), headers: {'Authorization': 'Bearer $token'}),
-      ]);
+        _client.get(searchApiUrl, headers: {'Authorization': 'Bearer $token'}),
+        _client.get(followingApiUrl, headers: {'Authorization': 'Bearer $token'}),
+      ]).timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
 
       final searchResponse = responses[0];
       final followingResponse = responses[1];
@@ -65,86 +91,80 @@ class _SearchScreenState extends State<SearchScreen> {
         final List<dynamic> followingIds = jsonDecode(followingResponse.body)['following'];
 
         setState(() {
-          if (searchResultsData.isEmpty) {
-            noResultsFound = true;
-          } else {
-            // Merge search results with `isFollowing` status
-            searchResults = searchResultsData.map((user) {
-              return {
-                'id': user['id'],
-                'username': user['user']['username'],
-                'firstName': user['user']['first_name'],
-                'lastName': user['user']['last_name'],
-                'bio': user['bio'],
-                'isFollowing': followingIds.contains(user['id']),
-              };
-            }).toList();
-          }
+          searchResults = searchResultsData.map((user) {
+            return {
+              'id': user['id'],
+              'username': user['user']['username'],
+              'firstName': user['user']['first_name'],
+              'lastName': user['user']['last_name'],
+              'bio': user['bio'],
+              'isFollowing': followingIds.contains(user['id']),
+            };
+          }).toList();
+          noResultsFound = searchResults.isEmpty && query.trim().isNotEmpty; // Update noResultsFound here
+          isLoading = false;
+          errorMessage = null;
         });
       } else {
-        _showErrorSnackbar('Failed to fetch search results or following list.');
+        setState(() {
+          errorMessage = 'Failed to fetch search results';
+          isLoading = false;
+        });
       }
-    } catch (error) {
-      _showErrorSnackbar('An error occurred while searching.');
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = 'An error occurred while searching';
+          isLoading = false;
+          searchResults = [];
+        });
+      }
     }
   }
 
-  Future<void> _followUser(int userId, bool isFollowing) async {
-    final String apiUrl = isFollowing
-        ? '${FOLLOW_SERVICE_URL}unfollow/'
-        : '${FOLLOW_SERVICE_URL}follow/';
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
-
-    if (token == null || token.isEmpty) {
-      _showErrorSnackbar('Authentication token is missing. Please log in again.');
-      return;
-    }
-
+  Future<void> _followUser(Map<String, dynamic> user) async {
     try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+      final isFollowing = user['isFollowing'] as bool;
+      
+      final response = await _client.post(
+        Uri.parse('${FOLLOW_SERVICE_URL}${isFollowing ? 'unfollow/' : 'follow/'}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'followee_id': userId}),
+        body: jsonEncode({'followee_id': user['id']}),
       );
+
+      if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() {
-          // Update the `isFollowing` status for the specific user in `searchResults`
-          for (var user in searchResults) {
-            if (user['id'] == userId) {
-              user['isFollowing'] = !isFollowing;
-              break;
-            }
+          final index = searchResults.indexWhere((u) => u['id'] == user['id']);
+          if (index != -1) {
+            searchResults[index]['isFollowing'] = !isFollowing;
           }
         });
-
-        final successMessage = isFollowing
-            ? 'You unfollowed ${searchResults.firstWhere((u) => u['id'] == userId)['username']}.'
-            : 'You started following ${searchResults.firstWhere((u) => u['id'] == userId)['username']}.';
-
-        _showSuccessSnackbar(successMessage);
+        _showSuccessSnackbar(
+          '${isFollowing ? 'Unfollowed' : 'Started following'} ${user['username']}'
+        );
       } else {
-        _showErrorSnackbar('Failed to update follow status. Status code: ${response.statusCode}');
+        _showErrorSnackbar('Failed to update follow status');
       }
-    } catch (error) {
-      _showErrorSnackbar('An error occurred while updating follow status.');
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackbar('Network error occurred');
+      }
     }
   }
 
   void _showErrorSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
+        key: const Key('errorSnackBar'),
+        content: Text(message),
         backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -152,83 +172,9 @@ class _SearchScreenState extends State<SearchScreen> {
   void _showSuccessSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
+        key: const Key('successSnackBar'),
+        content: Text(message),
         backgroundColor: Colors.green,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  Widget _buildUserCard(Map<String, dynamic> user) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.grey[300],
-                child: const Icon(Icons.person, color: Colors.white),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user['username'],
-                      style: GoogleFonts.yaldevi(
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${user['firstName']} ${user['lastName']}',
-                      style: GoogleFonts.yaldevi(
-                        textStyle: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () => _followUser(user['id'], user['isFollowing']),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: user['isFollowing']
-                      ? Colors.red[400]
-                      : const Color.fromRGBO(0, 174, 240, 1),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  user['isFollowing'] ? 'Unfollow' : 'Follow',
-                  style: GoogleFonts.yaldevi(
-                    textStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -239,73 +185,152 @@ class _SearchScreenState extends State<SearchScreen> {
       backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
       body: Column(
         children: [
-          const SizedBox(height: 20), // Add spacing above the search bar
-          Container(
-            color: const Color.fromRGBO(62, 110, 162, 1),
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _searchUsers,
-              decoration: InputDecoration(
-                hintText: 'Search users...',
-                hintStyle: GoogleFonts.yaldevi(
-                  textStyle: const TextStyle(color: Colors.white54, fontSize: 16),
-                ),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.1),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                  borderSide: BorderSide.none,
-                ),
-                prefixIcon: const Icon(Icons.search, color: Colors.white),
-              ),
-              style: GoogleFonts.yaldevi(
-                textStyle: const TextStyle(color: Colors.white, fontSize: 18),
-              ),
-            ),
-          ),
+          const SizedBox(height: 20),
+          _buildSearchBar(),
           Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                : searchResults.isEmpty && noResultsFound
-                    ? const Center(
-                        child: Text(
-                          "No users found.",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: searchResults.length,
-                        itemBuilder: (context, index) =>
-                            _buildUserCard(searchResults[index]),
-                      ),
+            child: _buildSearchResults(),
           ),
         ],
       ),
       bottomNavigationBar: CustomBottomNavBar(
-        currentIndex: 1, // Highlight the Search screen
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const HomeScreen(previousPage: 'search'),
-              ),
-            );
-          } else if (index == 2) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ProfileScreen(previousPage: 'search'),
-              ),
-            );
-          }
-        },
+        key: const Key('bottomNavBar'),
+        currentIndex: 1,
+        onTap: _handleNavigation,
       ),
     );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: TextField(
+        key: const Key('searchField'),
+        controller: _searchController,
+        onChanged: _searchUsers,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: 'Search users...',
+          hintStyle: const TextStyle(color: Colors.white54),
+          prefixIcon: const Icon(Icons.search, key: Key('searchIcon'), color: Colors.white),
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.1),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8.0),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResults() {
+  if (isLoading) {
+    return const Center(
+      child: CircularProgressIndicator(
+        key: Key('searchLoadingIndicator'),
+        color: Colors.white,
+      ),
+    );
+  }
+
+  if (errorMessage != null) {
+    return Center(
+      child: Text(
+        errorMessage!,
+        style: const TextStyle(color: Colors.red),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  if (noResultsFound) {
+    return const Center(
+      child: Text(
+        'No users found.',
+        style: TextStyle(color: Colors.white),
+      ),
+    );
+  }
+
+  if (searchResults.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  return ListView.builder(
+    key: const Key('searchResultsList'),
+    itemCount: searchResults.length,
+    itemBuilder: (context, index) => _buildUserCard(searchResults[index]),
+  );
+}
+
+  Widget _buildUserCard(Map<String, dynamic> user) {
+    return Card(
+      key: Key('userCard_${user['id']}'),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: Colors.grey[300],
+              child: const Icon(Icons.person),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user['username'],
+                    key: Key('username_${user['id']}'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    '${user['firstName']} ${user['lastName']}',
+                    key: Key('fullName_${user['id']}'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              key: Key('followButton_${user['id']}'),
+              onPressed: () => _followUser(user),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: user['isFollowing']
+                    ? Colors.red[400]
+                    : const Color.fromRGBO(0, 174, 240, 1),
+              ),
+              child: Text(
+                user['isFollowing'] ? 'Unfollow' : 'Follow',
+                key: Key('followButtonText_${user['id']}'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleNavigation(int index) {
+    if (!mounted) return;
+    
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(previousPage: 'search'),
+        ),
+      );
+    } else if (index == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ProfileScreen(previousPage: 'search'),
+        ),
+      );
+    }
   }
 }

@@ -5,17 +5,91 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ramble/service_urls.dart';
 
+// Create a service class for profile operations
+class ProfileService {
+  final http.Client httpClient;
+  final String baseUrl;
+
+  ProfileService({
+    http.Client? httpClient,
+    String? baseUrl,
+  })  : httpClient = httpClient ?? http.Client(),
+        baseUrl = baseUrl ?? USER_SERVICE_URL;
+
+  Future<Map<String, dynamic>> fetchProfile(String token) async {
+    final response = await httpClient.get(
+      Uri.parse('${baseUrl}profile/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to load profile: ${response.statusCode}');
+    }
+  }
+
+  Future<void> updateProfile(
+      String token, Map<String, dynamic> updatedData) async {
+    final response = await httpClient.patch(
+      Uri.parse('${baseUrl}profile/edit/'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(updatedData),
+    );
+
+    if (response.statusCode != 200) {
+      if (response.statusCode == 400) {
+        final errorResponse = json.decode(response.body);
+        if (errorResponse['user']?['username'] != null) {
+          throw Exception(errorResponse['user']['username'][0]);
+        }
+      }
+      throw Exception('Failed to update profile: ${response.statusCode}');
+    }
+  }
+}
+
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({Key? key}) : super(key: key);
+  final ProfileService? profileService;
+  final SharedPreferences? prefs;
+
+  const EditProfileScreen({
+    Key? key,
+    this.profileService,
+    this.prefs,
+  }) : super(key: key);
 
   @override
   _EditProfileScreenState createState() => _EditProfileScreenState();
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
+  String? validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Username cannot be empty';
+    } else if (value.contains(' ')) {
+      return 'Username cannot contain spaces';
+    }
+    return null;
+  }
+  String? validateBio(String? value) {
+    if (value != null && value.length > 50) {
+      return 'Bio cannot exceed 50 characters';
+    }
+    return null;
+  }
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _bioController = TextEditingController();
+
+  late final ProfileService _profileService;
+  late final Future<void> _initializationFuture;
 
   String? _originalUsername;
   String? _originalBio;
@@ -26,7 +100,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfileData();
+    _profileService = widget.profileService ?? ProfileService();
+    _initializationFuture = _loadProfileData();
     _addListeners();
   }
 
@@ -43,44 +118,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadProfileData() async {
-    setState(() {
-      _isSaving = true;
-    });
-
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
-
     try {
-      final response = await http.get(
-        Uri.parse('${USER_SERVICE_URL}profile/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final prefs = widget.prefs ?? await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+      
+      if (token == null) {
+        throw Exception('No auth token found');
+      }
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      final data = await _profileService.fetchProfile(token);
+      
+      if (mounted) {
         setState(() {
           _originalUsername = data['username'] ?? '';
           _originalBio = data['bio'] ?? '';
           _usernameController.text = _originalUsername!;
           _bioController.text = _originalBio!;
-          _hasChanges = false; // No changes initially
+          _hasChanges = false;
         });
-      } else {
-        _showErrorSnackbar('Failed to load profile data.');
       }
     } catch (e) {
-      _showErrorSnackbar('An error occurred while loading profile data.');
-    } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load profile data: ${e.toString()}';
+        });
+      }
+      rethrow;
     }
   }
 
   void _checkForChanges() {
+    if (!mounted) return;
+
     final usernameChanged = _usernameController.text != _originalUsername;
     final bioChanged = _bioController.text != _originalBio;
 
@@ -94,69 +163,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     setState(() {
       _isSaving = true;
-      _errorMessage = null;
     });
-
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
-
-    // Prepare data to send
-    final Map<String, dynamic> updatedData = {};
-
-    if (_usernameController.text != _originalUsername) {
-      updatedData['user'] = {'username': _usernameController.text};
-    }
-
-    if (_bioController.text != _originalBio) {
-      updatedData['bio'] = _bioController.text;
-    }
-
     try {
-      final response = await http.patch(
-        Uri.parse('${USER_SERVICE_URL}profile/edit/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(updatedData),
-      );
+      final prefs = widget.prefs ?? await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
 
-      if (response.statusCode == 200) {
-        // Update local data
-        if (_usernameController.text != _originalUsername) {
-          await prefs.setString('username', _usernameController.text);
-        }
-        if (_bioController.text != _originalBio) {
-          await prefs.setString('bio', _bioController.text);
-        }
+      if (token == null) {
+        throw Exception('No auth token found');
+      }
 
-        if (mounted) {
-          Navigator.pop(context, true); // Notify success
-        }
-      } else if (response.statusCode == 400) {
-        final errorResponse = json.decode(response.body);
-        if (errorResponse['user']?['username'] != null) {
-          _showErrorSnackbar(
-              errorResponse['user']['username'][0]); // Username error
-        } else {
-          _showErrorSnackbar('Failed to save changes. Please try again.');
-        }
-      } else {
-        _showErrorSnackbar('An unexpected error occurred. Please try again.');
+      final Map<String, dynamic> updatedData = {};
+
+      if (_usernameController.text != _originalUsername) {
+        updatedData['user'] = {'username': _usernameController.text};
+      }
+
+      if (_bioController.text != _originalBio) {
+        updatedData['bio'] = _bioController.text;
+      }
+
+      await _profileService.updateProfile(token, updatedData);
+
+      // Update local storage
+      if (_usernameController.text != _originalUsername) {
+        await prefs.setString('username', _usernameController.text);
+      }
+      if (_bioController.text != _originalBio) {
+        await prefs.setString('bio', _bioController.text);
+      }
+
+      if (mounted) {
+        setState(() {
+          _hasChanges = false;
+        });
       }
     } catch (e) {
-      _showErrorSnackbar('Network error. Please check your connection.');
+      _showErrorSnackbar('Failed to save changes. Please try again.');
     } finally {
-      setState(() {
-        _isSaving = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 
   void _showErrorSnackbar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white)),
+        content: Text(message),
         backgroundColor: Colors.red,
       ),
     );
@@ -164,88 +220,120 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
-      appBar: AppBar(
-        iconTheme: const IconThemeData(color: Colors.white),
+      return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _hasChanges);
+        return false;
+      },
+      child: Scaffold(
         backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
-        title: Text(
-          'Edit Profile',
-          style: GoogleFonts.yaldevi(
-            textStyle: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: _isSaving
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTextField(
-                      label: 'Username',
-                      controller: _usernameController,
-                      hintText: 'Enter your username',
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Username cannot be empty';
-                        } else if (value.contains(' ')) {
-                          return 'Username cannot contain spaces';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      label: 'Bio',
-                      controller: _bioController,
-                      hintText: 'Enter your bio (max 50 characters)',
-                      maxLines: 3,
-                      validator: (value) {
-                        if (value != null && value.length > 50) {
-                          return 'Bio cannot exceed 50 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    if (_errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10.0),
-                        child: Text(
-                          _errorMessage!,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ElevatedButton(
-                      onPressed: _hasChanges ? _saveChanges : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _hasChanges
-                            ? const Color.fromRGBO(0, 174, 240, 1)
-                            : Colors.grey,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text(
-                        'Save Changes',
-                        style: TextStyle(color: Colors.white, fontSize: 18),
-                      ),
-                    ),
-                  ],
-                ),
+        appBar: AppBar(
+          iconTheme: const IconThemeData(color: Colors.white),
+          backgroundColor: const Color.fromRGBO(62, 110, 162, 1),
+          title: Text(
+            'Edit Profile',
+            style: GoogleFonts.yaldevi(
+              textStyle: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-    );
+          ),
+          centerTitle: true,
+        ),
+        body: FutureBuilder<void>(
+          future: _initializationFuture,
+          builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator(color: Colors.white));
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Error loading profile',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _initializationFuture = _loadProfileData();
+                      });
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTextField(
+                    label: 'Username',
+                    controller: _usernameController,
+                    hintText: 'Enter your username',
+                    validator: validateUsername,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    label: 'Bio',
+                    controller: _bioController,
+                    hintText: 'Enter your bio (max 50 characters)',
+                    maxLines: 3,
+                    validator: validateBio,
+                  ),
+                  const SizedBox(height: 20),
+                  if (_errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ElevatedButton(
+                    onPressed: _hasChanges && !_isSaving ? _saveChanges : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _hasChanges
+                          ? const Color.fromRGBO(0, 174, 240, 1)
+                          : Colors.grey,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'Save Changes',
+                            style: TextStyle(color: Colors.white, fontSize: 18),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      ));
   }
 
   Widget _buildTextField({

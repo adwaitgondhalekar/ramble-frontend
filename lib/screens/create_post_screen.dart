@@ -6,7 +6,8 @@ import 'dart:convert';
 import 'package:ramble/service_urls.dart';
 
 class CreatePostScreen extends StatefulWidget {
-  const CreatePostScreen({super.key});
+  final http.Client httpClient;
+  const CreatePostScreen({super.key, required this.httpClient});
 
   @override
   _CreatePostScreenState createState() => _CreatePostScreenState();
